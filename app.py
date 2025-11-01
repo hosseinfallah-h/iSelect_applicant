@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
+"""
+I-SELECT (Applicant Intake) — Flask app
+- Persian-aware voice parser (names, age, gender, experience, city, military, skills, interests)
+- Excel append with headers (data/people.xlsx)
+"""
+
 import os
 import re
 import csv
-import json
 from datetime import datetime
 
 import pandas as pd
@@ -45,13 +50,12 @@ def normalize_spaces(s: str) -> str:
     return s.strip()
 
 # =========================================
-# Small Persian name lexicon (built-in) + optional CSV
-# CSV format (no header needed or use header): first_name,gender
-# gender ∈ {"مرد","زن"}
+# Name lexicon (built-in) + optional CSV
+# CSV format (with or without header): first_name,gender   gender ∈ {"مرد","زن"}
 # =========================================
 BUILTIN_MALE = {
-    "علی","حسین","محمد","رضا","مهدی","امیر","حمید","سعید","رضوان","هادی","حامد","وحید","مصطفی","حسن","مجتبی",
-    "مجید","رضیان","میلاد","احمد","کاظم","بهزاد","روح‌الله","روح الله","یاسر","محسن","نیما","کیان","پارسا",
+    "علی","حسین","محمد","رضا","مهدی","امیر","حمید","سعید","هادی","حامد","وحید","مصطفی","حسن","مجتبی",
+    "مجید","میلاد","احمد","کاظم","بهزاد","روح‌الله","روح الله","یاسر","محسن","نیما","کیان","پارسا",
 }
 BUILTIN_FEMALE = {
     "زهرا","فاطمه","مریم","سارا","سمیرا","مینا","مهسا","نازنین","الهام","پریسا","نیلوفر","ریحانه","نگار","هدیه",
@@ -69,15 +73,12 @@ def load_name_lexicon():
                 for row in reader:
                     if not row:
                         continue
-                    # support both with/without header; try to parse
-                    first = row[0].strip() if len(row) > 0 else ""
-                    g = (row[1].strip() if len(row) > 1 else "").replace("زن","زن").replace("مرد","مرد")
-                    if not first:
+                    first = (row[0] or "").strip()
+                    g_raw = (row[1] if len(row) > 1 else "").strip()
+                    g = "مرد" if "مرد" in g_raw else ("زن" if "زن" in g_raw else "")
+                    if not first or not g:
                         continue
-                    if g == "مرد":
-                        male.add(first)
-                    elif g == "زن":
-                        female.add(first)
+                    (male if g == "مرد" else female).add(first)
         except Exception as e:
             print("⚠️ name lexicon load error:", e)
     return male, female
@@ -88,27 +89,20 @@ def guess_gender_from_first_name(first_name: str) -> str:
     n = norm(first_name)
     if not n:
         return ""
-    # exact match first
-    if n in MALE_NAMES:
-        return "مرد"
-    if n in FEMALE_NAMES:
-        return "زن"
-    # case-insensitive/fuzzy (latin)
+    if n in MALE_NAMES: return "مرد"
+    if n in FEMALE_NAMES: return "زن"
     n_l = n.lower()
-    if n_l in {x.lower() for x in MALE_NAMES}:
-        return "مرد"
-    if n_l in {x.lower() for x in FEMALE_NAMES}:
-        return "زن"
+    if n_l in {x.lower() for x in MALE_NAMES}: return "مرد"
+    if n_l in {x.lower() for x in FEMALE_NAMES}: return "زن"
     return ""
 
 # =========================================
-# Domain heuristics
+# Domain heuristics (regex, anchors, lists)
 # =========================================
 CITY_HINT_WORDS = r"(?:در|توی|ساکن\s*در|محل\s*سکونت\s*|از\s*شهر\s*)"
-MIL_HAVE = r"(?:پایان\s*خدمت|کارت\s*پایان\s*خدمت|کارت|دار(?:د|م|ی)|انجام\s*داده|تموم\s*کرده)"
-MIL_NOT  = r"(?:معاف|ندار(?:د|م|ی)|نخورده|نرفته|نرفته‌ام|معافیت)"
+MIL_HAVE = r"(?:پایان\s*خدمت|کارت\s*پایان\s*خدمت|کارت|دار(?:د|م|ی)|انجام\s*داده|تموم\s*کرد[ه|م|ی])"
+MIL_NOT  = r"(?:معاف|ندار(?:د|م|ی)|نخورده|نرفته|معافیت)"
 
-# Skills/Interests anchors and synonyms
 SKILL_ANCHORS = [
     r"مهارت(?:‌|\s*)های?\s*کلیدی", r"مهارت(?:‌|\s*)ها", r"مهارت", r"skills?", r"key\s*skills?"
 ]
@@ -116,27 +110,73 @@ INTEREST_ANCHORS = [
     r"علاق(?:ه|ق)", r"علایق", r"علاقمند(?:ی|ی‌ها)?", r"interest(?:s)?"
 ]
 
-# token splitters for comma-like lists
 LIST_SPLIT = r"[,\u060C،;؛]| و "
+
+# === Skill dictionary & scanner (extend as you wish) ===
+BUILTIN_SKILLS = {
+    "python": {"python","پایتون"},
+    "sql": {"sql","اس‌کیوال","اس کیو ال"},
+    "machine learning": {"machine learning","ml","یادگیری ماشین","ماشین لرنینگ"},
+    "deep learning": {"deep learning","یادگیری عمیق","دیپ لرنینگ"},
+    "ai": {"ai","هوش مصنوعی"},
+    "excel": {"excel","اکسل"},
+    "power bi": {"power bi","پاور بی‌آی","پاور بی ای","powerbi"},
+    "plc": {"plc","پی ال سی"},
+    "javascript": {"javascript","جاوااسکریپت","js"},
+    "react": {"react","ری‌اکت","ری اکت"},
+}
+
+SKILL_PRETTY = {
+    "python":"Python","sql":"SQL","machine learning":"یادگیری ماشین",
+    "deep learning":"یادگیری عمیق","ai":"هوش مصنوعی","excel":"Excel",
+    "power bi":"Power BI","plc":"PLC","javascript":"JavaScript","react":"React",
+}
+
+def normalize_token(t: str) -> str:
+    t = normalize_spaces(normalize_digits(t)).lower()
+    t = t.replace("‌", " ")
+    return t
+
+def scan_known_skills(full_text: str) -> list:
+    t = normalize_token(full_text)
+    hits = []
+    for canon, synonyms in BUILTIN_SKILLS.items():
+        for syn in synonyms:
+            if re.search(rf"(?<![آ-یa-z0-9]){re.escape(syn)}(?![آ-یa-z0-9])", t):
+                hits.append(canon)
+                break
+    # pretty print & de-dup
+    seen = set()
+    out = []
+    for h in hits:
+        p = SKILL_PRETTY.get(h, h)
+        if p.lower() not in seen:
+            seen.add(p.lower())
+            out.append(p)
+    return out
+
+# =========================================
+# Regex helpers
+# =========================================
+PERS_LET = r"آ-یA-Za-z"
+
+def has_token(pattern: str, text: str) -> bool:
+    """Match token with pseudo word-boundaries for Persian/Latin."""
+    return re.search(rf"(?<![{PERS_LET}])(?:{pattern})(?![{PERS_LET}])", text) is not None
 
 def extract_name_tokens(s: str):
     """
-    Heuristics for first/last name:
-    - "من علی رضایی هستم"
-    - "نام من علی رضایی است"
-    - "من علی هستم" (first name only)
-    - "نام خانوادگی من رضایی است"
-    - Falls back: if we see two adjacent Persian tokens early, assume first + last
+    Heuristics for first/last:
+      - "من علی رضایی هستم" / "نام من علی رضایی است"
+      - "نام خانوادگی من رضایی است" (last only)
+      - Fallback: first two Persian/Latin words (ignoring obvious stop-words)
     """
-    first = ""
-    last = ""
+    first, last = "", ""
 
-    # explicit "نام خانوادگی ..."
     m = re.search(r"(?:نام\s*خانوادگی|فامیلی)\s+(?P<last>[آ-یA-Za-z]+)", s)
     if m:
         last = m.group("last")
 
-    # "نام من X Y" or "من X Y هستم"
     m = re.search(r"(?:نام\s*من|من)\s+(?P<n1>[آ-یA-Za-z]+)(?:\s+(?P<n2>[آ-یA-Za-z]+))?", s)
     if m:
         n1 = m.group("n1")
@@ -146,52 +186,36 @@ def extract_name_tokens(s: str):
         elif n1 and not first:
             first = n1
 
-    # If still missing last name: look for pattern "X Y هستم|هستم|هستم"
     if not last:
         m = re.search(r"\b([آ-یA-Za-z]+)\s+([آ-یA-Za-z]+)\s+(?:هستم|می\s*باشم|استم)\b", s)
         if m:
             first = first or m.group(1)
             last = m.group(2)
 
-    # Fallback early-bigram: take first two Persian words at the beginning (avoid numbers/keywords)
     if not first:
         tokens = re.findall(r"[آ-یA-Za-z]+", s)
-        # filter obvious non-name starters
-        bad = {"من","نام","اسم","اینجانب","اینجا","این","هستم","هست"}
+        bad = {"من","نام","اسم","اینجانب","این","هستم","هست","میباشم","می‌باشم"}
         tokens = [t for t in tokens if t not in bad]
         if tokens:
             first = tokens[0]
             if len(tokens) > 1 and not last:
                 last = tokens[1]
-
     return first, last
 
 def extract_age(s: str):
-    """
-    Finds a single age in years:
-    - "۲۸ ساله" / "28 سال" / "سن 28"
-    If there is a range, we pick the single number if context says "ساله".
-    """
-    # explicit "X ساله"
+    # "۲۸ ساله" / "28 سال" / "سن 28"
     m = re.search(r"(?:سن\s*)?(\d{1,3})\s*سال(?:ه)?", s)
     if m:
         return to_int_or_none(m.group(1))
-    # "سن 28"
     m = re.search(r"سن\s*(\d{1,3})\b", s)
     if m:
         return to_int_or_none(m.group(1))
     return None
 
 def extract_experience_years(s: str):
-    """
-    Extracts a single number of experience years:
-    - "۴ سال سابقه / سابقه 4 سال / تجربه 3 سال"
-    - also catches "حدود ۳ سال سابقه"
-    """
-    # "سابقه ... X سال"
+    # "سابقه ... X سال" | "X سال سابقه" | "تجربه X سال"
     m = re.search(r"(?:سابقه(?:\s*کاری)?|تجربه)\s*(?:حدود|نزدیک|حداقل|حداکثر|بیش\s*از|کمتر\s*از)?\s*(\d{1,2})\s*سال", s)
     if not m:
-        # "X سال سابقه"
         m = re.search(r"(\d{1,2})\s*سال(?:ه)?\s*(?:سابقه(?:\s*کاری)?|تجربه)", s)
     if m:
         return to_int_or_none(m.group(1))
@@ -211,39 +235,46 @@ def extract_military(s: str):
 def extract_list_after_anchors(s: str, anchors):
     """
     Extracts a comma/،/;/؛/ 'و' separated list after any of the anchor phrases.
-    Returns a clean comma-separated string.
     """
     for a in anchors:
         m = re.search(rf"(?:{a})[:：]?\s*([^\n]+)", s, flags=re.IGNORECASE)
         if m:
             raw = m.group(1).strip()
-            # cut at a sentence boundary if present
-            raw = re.split(r"[.!؟\n]", raw)[0]
+            raw = re.split(r"[.!؟\n]", raw)[0]  # stop at sentence end
             parts = re.split(LIST_SPLIT, raw)
             parts = [normalize_spaces(p).strip() for p in parts if normalize_spaces(p).strip()]
-            # de-dup while preserving order
-            seen = set()
-            out = []
+            # de-dup preserve order
+            seen = set(); out = []
             for p in parts:
-                if p.lower() not in seen:
-                    seen.add(p.lower())
+                key = p.lower()
+                if key not in seen:
+                    seen.add(key)
                     out.append(p)
             return ", ".join(out)
     return ""
 
+def merge_csv_like(a: str, b_list: list) -> str:
+    """Merge 'a' (CSV string) with items from 'b_list' (list of strings), de-dup."""
+    a_parts = [x.strip() for x in (a.split(",") if a else []) if x.strip()]
+    seen = {p.lower() for p in a_parts}
+    for item in (b_list or []):
+        if item and item.lower() not in seen:
+            a_parts.append(item)
+            seen.add(item.lower())
+    return ", ".join(a_parts)
+
 def post_infer_gender(first_name: str, current_gender: str) -> str:
-    # explicit gender words beat lexicon
+    # explicit beats inference
     if current_gender in {"مرد","زن"}:
         return current_gender
-    # otherwise infer from first name
-    g = guess_gender_from_first_name(first_name)
-    return g or current_gender
+    return guess_gender_from_first_name(first_name) or current_gender
 
 # =========================================
 # NLP: main voice parser (pure local, Persian-aware)
 # =========================================
 def parse_voice_utterance(utter: str) -> dict:
     s = normalize_spaces(normalize_digits(utter or ""))
+
     out = {
         "first_name": "",
         "last_name": "",
@@ -258,8 +289,7 @@ def parse_voice_utterance(utter: str) -> dict:
 
     # Names
     fn, ln = extract_name_tokens(s)
-    out["first_name"] = fn
-    out["last_name"] = ln
+    out["first_name"], out["last_name"] = fn, ln
 
     # Age
     age = extract_age(s)
@@ -274,19 +304,23 @@ def parse_voice_utterance(utter: str) -> dict:
     # City
     out["city"] = extract_city(s)
 
-    # Gender (explicit first)
-    if re.search(r"(خانم|زن)", s):
+    # Gender — use true token boundaries (no 'زن' inside 'زندگی')
+    if has_token(r"(خانم|زن)", s):
         out["gender"] = "زن"
-    if re.search(r"(آقا|مرد)", s):
+    elif has_token(r"(آقا|مرد)", s):
         out["gender"] = "مرد"
-    # Fallback infer
+
+    # Fallback infer from first name
     out["gender"] = post_infer_gender(out["first_name"], out["gender"])
 
     # Military
     out["military_status"] = extract_military(s)
 
-    # Skills & Interests (listy)
-    out["skills"] = extract_list_after_anchors(s, SKILL_ANCHORS)
+    # Skills & Interests
+    anchored_skills = extract_list_after_anchors(s, SKILL_ANCHORS)
+    scanned_skills = scan_known_skills(s)  # full-text dictionary scan
+    out["skills"] = merge_csv_like(anchored_skills, scanned_skills)
+
     out["interests"] = extract_list_after_anchors(s, INTEREST_ANCHORS)
 
     return out
@@ -335,7 +369,7 @@ def append_record_to_excel(row: dict, xlsx_path: str):
 @app.route("/", methods=["GET", "POST"])
 def index():
     """
-    GET -> show form (empty)
+    GET -> show form
     POST -> save record, show success panel and the last record
     """
     last_record = None
