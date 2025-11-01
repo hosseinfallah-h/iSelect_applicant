@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Env
+.env
+
+# App data
+data/*.xlsx

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>I-SELECT – ورود اطلاعات افراد (صوت/فرم → Excel)</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/particles.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap" rel="stylesheet" />
+
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background: radial-gradient(circle at top, #0a0f2d, #050814);
+            color: #fff;
+            min-height: 100vh;
+            overflow-x: hidden
+        }
+
+        #particles-js {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: radial-gradient(circle at top, #0a0f2d, #050814)
+        }
+
+        .glass {
+            backdrop-filter: blur(25px) saturate(180%);
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .2);
+            border-radius: 1.5rem;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, .6)
+        }
+
+        .btn-grad {
+            background: linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6);
+            transition: transform .2s, box-shadow .3s
+        }
+
+        .btn-grad:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(236, 72, 153, .6)
+        }
+
+        .voice-area {
+            resize: none;
+            overflow-y: auto;
+            min-height: 3.25rem;
+            max-height: 40vh;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-word;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06)
+        }
+
+        .voice-area::-webkit-scrollbar {
+            width: 8px
+        }
+
+        .voice-area::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, .18);
+            border-radius: 999px
+        }
+
+        .voice-area::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, .28)
+        }
+
+        .hint {
+            font-size: .8rem;
+            color: #cbd5e1
+        }
+    </style>
+</head>
+
+<body class="flex items-center justify-center p-4">
+    <div id="particles-js"></div>
+
+    <div class="glass w-full max-w-5xl p-6 sm:p-10 animate__animated animate__fadeInUp">
+        <h1 class="text-3xl sm:text-4xl font-extrabold mb-2 text-center text-pink-400">
+            🗂️ I-SELECT – ورود اطلاعات افراد (صوت/فرم → Excel)
+        </h1>
+        <p class="text-center text-sm text-gray-300 mb-6">
+            فایل اکسل مقصد: <code class="text-pink-300">{{ excel_rel_path }}</code>
+        </p>
+
+        {% if success and last_record %}
+        <div class="mb-6 p-4 rounded-xl bg-green-500/15 border border-green-500/20 text-green-100">
+            ✅ رکورد با موفقیت ثبت شد.
+        </div>
+        {% endif %}
+
+        <!-- Voice to form -->
+        <section class="mb-6 space-y-2">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <button id="voiceBtn" type="button"
+                    class="btn-grad text-white px-5 py-2 rounded-full font-semibold flex items-center justify-center gap-2 shrink-0">
+                    🎤 گفتار کاربر
+                </button>
+                <div class="flex-1">
+                    <label for="voiceText" class="sr-only">متن گفتار</label>
+                    <textarea id="voiceText" rows="2" dir="auto"
+                        placeholder="مثال: «من علی رضایی ۲۸ سالمه، ۴ سال سابقه، در تهران؛ مهارت‌ها: Python، SQL؛ علایق: یادگیری ماشین»"
+                        class="voice-area w-full rounded-2xl bg-gray-900/60 text-white/90 border border-white/10 focus:border-pink-500/50 focus:outline-none px-3 py-2 leading-relaxed placeholder:text-white/40"></textarea>
+                    <div class="mt-1 flex items-center justify-between text-xs text-gray-300/80">
+                        <span class="hint">اگر میکروفن پشتیبانی نمی‌شود، اینجا تایپ کنید و «پردازش و پرکردن فرم» را
+                            بزنید.</span>
+                        <span id="charCount" class="hidden sm:inline">۰ کاراکتر</span>
+                    </div>
+                </div>
+                <div class="flex gap-2 sm:flex-col sm:gap-2 sm:shrink-0">
+                    <button id="fillFromVoice" type="button"
+                        class="px-4 py-2 rounded-full font-semibold bg-white/10 hover:bg-white/20 border border-white/10">
+                        ✨ پردازش و پرکردن فرم
+                    </button>
+                    <button id="clearVoice" type="button"
+                        class="px-4 py-2 rounded-full font-semibold bg-white/5 hover:bg-white/15 border border-white/10">
+                        🧹 پاک کردن
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Manual form -->
+        <form method="post" action="/" class="space-y-6">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block mb-2 text-pink-200 font-semibold">نام</label>
+                    <input name="first_name" type="text"
+                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
+                </div>
+                <div>
+                    <label class="block mb-2 text-pink-200 font-semibold">نام خانوادگی</label>
+                    <input name="last_name" type="text"
+                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block mb-2 text-pink-200 font-semibold">سن</label>
+                    <input name="age" type="number" min="0"
+                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
+                </div>
+                <div>
+                    <label class="block mb-2 text-pink-200 font-semibold">جنسیت</label>
+                    <select name="gender"
+                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10">
+                        <option value=""></option>
+                        <option value="مرد">مرد</option>
+                        <option value="زن">زن</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block mb-2 text-pink-200 font-semibold">تعداد سال سابقه کار</label>
+                    <input name="experience_years" type="number" min="0"
+                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block mb-2 text-pink-200 font-semibold">شهر محل سکونت</label>
+                    <input name="city" type="text"
+                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
+                </div>
+                <div>
+                    <label class="block mb-2 text-pink-200 font-semibold">وضعیت سربازی</label>
+                    <select name="military_status"
+                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10">
+                        <option value=""></option>
+                        <option value="دارد">دارد</option>
+                        <option value="ندارد">ندارد</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block mb-2 text-pink-200 font-semibold">مهارت های کلیدی</label>
+                <input name="skills" type="text" placeholder="مثلاً: Python, SQL, PLC"
+                    class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
+            </div>
+
+            <div>
+                <label class="block mb-2 text-pink-200 font-semibold">علایق</label>
+                <input name="interests" type="text" placeholder="مثلاً: هوش مصنوعی، یادگیری ماشین"
+                    class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
+            </div>
+
+            <div class="text-center">
+                <button type="submit" class="btn-grad text-white px-10 py-3 rounded-full font-semibold">
+                    💾 ثبت در Excel
+                </button>
+            </div>
+        </form>
+
+        <!-- Last record preview -->
+        {% if success and last_record %}
+        <div class="mt-8 p-4 rounded-xl bg-white/10 border border-white/10">
+            <h3 class="text-xl font-bold text-pink-300 mb-3">🧾 آخرین رکورد ثبت‌شده</h3>
+            <div class="grid md:grid-cols-2 gap-2 text-sm text-gray-100">
+                <div><b>نام:</b> {{ last_record.first_name }}</div>
+                <div><b>نام خانوادگی:</b> {{ last_record.last_name }}</div>
+                <div><b>سن:</b> {{ last_record.age }}</div>
+                <div><b>جنسیت:</b> {{ last_record.gender }}</div>
+                <div><b>سابقه کار (سال):</b> {{ last_record.experience_years }}</div>
+                <div><b>شهر:</b> {{ last_record.city }}</div>
+                <div><b>وضعیت سربازی:</b> {{ last_record.military_status }}</div>
+                <div class="md:col-span-2"><b>مهارت‌ها:</b> {{ last_record.skills }}</div>
+                <div class="md:col-span-2"><b>علایق:</b> {{ last_record.interests }}</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Particles
+        particlesJS("particles-js", {
+            particles: {
+                number: { value: 100 }, color: { value: "#ec4899" }, shape: { type: "circle" }, opacity: { value: 0.3 }, size: { value: 3 },
+                line_linked: { enable: true, distance: 140, color: "#3b82f6", opacity: 0.3, width: 1 }, move: { enable: true, speed: 2 }
+            },
+            interactivity: { events: { onhover: { enable: true, mode: "grab" } }, modes: { grab: { distance: 200, line_linked: { opacity: 0.5 } } } },
+            retina_detect: true
+        });
+
+        // Voice UI
+        const voiceBtn = document.getElementById("voiceBtn");
+        const voiceText = document.getElementById("voiceText");
+        const fillBtn = document.getElementById("fillFromVoice");
+        const clearBtn = document.getElementById("clearVoice");
+        const charCount = document.getElementById("charCount");
+
+        function autoGrow(el) {
+            el.style.height = '0px';
+            const maxH = window.innerHeight * 0.4;
+            el.style.height = Math.min(el.scrollHeight + 2, maxH) + 'px';
+            el.scrollTop = el.scrollHeight;
+            if (charCount) charCount.textContent = (el.value.length.toLocaleString('fa-IR')) + ' کاراکتر';
+        }
+        voiceText.addEventListener('input', () => autoGrow(voiceText));
+        window.addEventListener('resize', () => autoGrow(voiceText), { passive: true });
+        autoGrow(voiceText);
+
+        let recognition = null;
+        (function initSTT() {
+            try {
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SR) return;
+                recognition = new SR();
+                recognition.lang = "fa-IR";
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                recognition.addEventListener("result", (e) => {
+                    const t = e.results[0][0]?.transcript || "";
+                    voiceText.value = (t || "").trim();
+                    requestAnimationFrame(() => autoGrow(voiceText));
+                });
+                recognition.addEventListener("end", () => {
+                    voiceBtn.disabled = false;
+                    voiceBtn.textContent = "🎤 گفتار کاربر";
+                });
+            } catch (e) { console.warn("SpeechRecognition init error:", e); }
+        })();
+
+        voiceBtn?.addEventListener("click", () => {
+            if (!recognition) {
+                alert("مرورگر شما از تشخیص گفتار پشتیبانی نمی‌کند. لطفاً متن را در کادر بالا تایپ کنید.");
+                return;
+            }
+            voiceBtn.disabled = true;
+            voiceBtn.textContent = "⏺️ در حال گوش دادن…";
+            recognition.start();
+        });
+
+        clearBtn?.addEventListener("click", () => {
+            voiceText.value = '';
+            autoGrow(voiceText);
+            voiceText.focus();
+        });
+
+        fillBtn?.addEventListener("click", async () => {
+            const utter = (voiceText.value || "").trim();
+            if (!utter) {
+                alert("ابتدا صحبت کنید یا متنی بنویسید، سپس پردازش کنید.");
+                return;
+            }
+            try {
+                const res = await fetch("/nlp/parse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ utterance: utter })
+                });
+                if (!res.ok) throw new Error("NLP parse failed");
+                const data = await res.json();
+
+                const setVal = (sel, v) => { const el = document.querySelector(sel); if (el != null && v != null) { el.value = v; } };
+                setVal('input[name="first_name"]', data.first_name || "");
+                setVal('input[name="last_name"]', data.last_name || "");
+                setVal('input[name="age"]', data.age || "");
+                setVal('select[name="gender"]', data.gender || "");
+                setVal('input[name="experience_years"]', data.experience_years || "");
+                setVal('input[name="city"]', data.city || "");
+                setVal('select[name="military_status"]', data.military_status || "");
+                setVal('input[name="skills"]', data.skills || "");
+                setVal('input[name="interests"]', data.interests || "");
+
+                fillBtn.textContent = "✅ فرم پر شد";
+                setTimeout(() => fillBtn.textContent = "✨ پردازش و پرکردن فرم", 1200);
+            } catch (e) {
+                console.error(e);
+                alert("خطا در پردازش متن. دوباره امتحان کنید.");
+            }
+        });
+    </script>
+</body>
+
+</html>
