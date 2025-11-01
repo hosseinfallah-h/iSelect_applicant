@@ -1,30 +1,48 @@
 # -*- coding: utf-8 -*-
 """
-I-SELECT (Applicant Intake) — Flask app
-- Persian-aware voice parser (names, age, gender, experience, city, military, skills, interests)
-- Excel append with headers (data/people.xlsx)
+I-SELECT (Applicant Intake) — Gemma-only extraction backend
+
+Workflow:
+  1) Frontend records voice and stops after ~3s silence (frontend).
+  2) Frontend sends transcription text to /nlp/parse.
+  3) Backend calls Gemma (Ollama) to extract a strict JSON profile.
+  4) Backend post-processes & returns fields to pre-fill form.
+  5) On submit, record is appended to Excel (data/people.xlsx).
+
+ENV (optional):
+  OLLAMA_MODEL=gemma3:1b   # or gemma3:4b, etc.
 """
 
 import os
-import re
 import csv
+import re
+import json
 from datetime import datetime
 
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
 
-# =========================================
+# ---- Ollama (required for this workflow) ------------------------------------
+try:
+    import ollama  # pip install ollama
+except Exception as e:
+    ollama = None
+    print("⚠️ Ollama not available. Install `pip install ollama` and run the Ollama server.")
+
+# -----------------------------------------------------------------------------
 # App config
-# =========================================
+# -----------------------------------------------------------------------------
 app = Flask(__name__)
 app.config["DATA_FOLDER"] = "data"
 app.config["EXCEL_PATH"] = os.path.join(app.config["DATA_FOLDER"], "people.xlsx")
 app.config["NAME_LEXICON_PATH"] = os.path.join(app.config["DATA_FOLDER"], "names_fa.csv")  # optional CSV
 os.makedirs(app.config["DATA_FOLDER"], exist_ok=True)
 
-# =========================================
-# Normalization utils
-# =========================================
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:1b")
+
+# -----------------------------------------------------------------------------
+# Normalizers
+# -----------------------------------------------------------------------------
 PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 ARABIC_DIGITS  = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 
@@ -37,22 +55,23 @@ def normalize_digits(s: str) -> str:
     s = str(s or "")
     return s.translate(PERSIAN_DIGITS).translate(ARABIC_DIGITS)
 
-def to_int_or_none(s):
-    try:
-        return int(float(str(s)))
-    except Exception:
-        return None
-
 def normalize_spaces(s: str) -> str:
-    # normalize weird spaces/half-spaces
-    s = s.replace("\u200c", " ")  # ZWNJ -> space
+    # ZWNJ -> space; collapse spaces
+    s = (s or "").replace("\u200c", " ")
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
-# =========================================
-# Name lexicon (built-in) + optional CSV
-# CSV format (with or without header): first_name,gender   gender ∈ {"مرد","زن"}
-# =========================================
+def to_int_or_empty(v):
+    if v in (None, "", "null"):
+        return ""
+    try:
+        return int(float(str(v)))
+    except Exception:
+        return ""
+
+# -----------------------------------------------------------------------------
+# Optional name lexicon for gender fallback (no regex on utterance; just post fix)
+# -----------------------------------------------------------------------------
 BUILTIN_MALE = {
     "علی","حسین","محمد","رضا","مهدی","امیر","حمید","سعید","هادی","حامد","وحید","مصطفی","حسن","مجتبی",
     "مجید","میلاد","احمد","کاظم","بهزاد","روح‌الله","روح الله","یاسر","محسن","نیما","کیان","پارسا",
@@ -75,259 +94,175 @@ def load_name_lexicon():
                         continue
                     first = (row[0] or "").strip()
                     g_raw = (row[1] if len(row) > 1 else "").strip()
-                    g = "مرد" if "مرد" in g_raw else ("زن" if "زن" in g_raw else "")
-                    if not first or not g:
+                    if not first or not g_raw:
                         continue
-                    (male if g == "مرد" else female).add(first)
+                    if "مرد" in g_raw:
+                        male.add(first)
+                    elif "زن" in g_raw:
+                        female.add(first)
         except Exception as e:
             print("⚠️ name lexicon load error:", e)
     return male, female
 
 MALE_NAMES, FEMALE_NAMES = load_name_lexicon()
 
-def guess_gender_from_first_name(first_name: str) -> str:
+def gender_from_first_name(first_name: str) -> str:
     n = norm(first_name)
     if not n:
         return ""
     if n in MALE_NAMES: return "مرد"
     if n in FEMALE_NAMES: return "زن"
+    # latin-insensitive
     n_l = n.lower()
     if n_l in {x.lower() for x in MALE_NAMES}: return "مرد"
     if n_l in {x.lower() for x in FEMALE_NAMES}: return "زن"
     return ""
 
-# =========================================
-# Domain heuristics (regex, anchors, lists)
-# =========================================
-CITY_HINT_WORDS = r"(?:در|توی|ساکن\s*در|محل\s*سکونت\s*|از\s*شهر\s*)"
-MIL_HAVE = r"(?:پایان\s*خدمت|کارت\s*پایان\s*خدمت|کارت|دار(?:د|م|ی)|انجام\s*داده|تموم\s*کرد[ه|م|ی])"
-MIL_NOT  = r"(?:معاف|ندار(?:د|م|ی)|نخورده|نرفته|معافیت)"
-
-SKILL_ANCHORS = [
-    r"مهارت(?:‌|\s*)های?\s*کلیدی", r"مهارت(?:‌|\s*)ها", r"مهارت", r"skills?", r"key\s*skills?"
-]
-INTEREST_ANCHORS = [
-    r"علاق(?:ه|ق)", r"علایق", r"علاقمند(?:ی|ی‌ها)?", r"interest(?:s)?"
-]
-
-LIST_SPLIT = r"[,\u060C،;؛]| و "
-
-# === Skill dictionary & scanner (extend as you wish) ===
-BUILTIN_SKILLS = {
-    "python": {"python","پایتون"},
-    "sql": {"sql","اس‌کیوال","اس کیو ال"},
-    "machine learning": {"machine learning","ml","یادگیری ماشین","ماشین لرنینگ"},
-    "deep learning": {"deep learning","یادگیری عمیق","دیپ لرنینگ"},
-    "ai": {"ai","هوش مصنوعی"},
-    "excel": {"excel","اکسل"},
-    "power bi": {"power bi","پاور بی‌آی","پاور بی ای","powerbi"},
-    "plc": {"plc","پی ال سی"},
-    "javascript": {"javascript","جاوااسکریپت","js"},
-    "react": {"react","ری‌اکت","ری اکت"},
+# -----------------------------------------------------------------------------
+# Skill pretty mapping (post-format only; extraction is done by Gemma)
+# -----------------------------------------------------------------------------
+BUILTIN_SKILL_SYNS = {
+    "Python": {"python","پایتون"},
+    "SQL": {"sql","اس کیو ال","اس‌کیوال"},
+    "یادگیری ماشین": {"machine learning","ml","یادگیری ماشین","ماشین لرنینگ"},
+    "یادگیری عمیق": {"deep learning","دیپ لرنینگ","یادگیری عمیق"},
+    "هوش مصنوعی": {"ai","هوش مصنوعی"},
+    "Excel": {"excel","اکسل"},
+    "Power BI": {"power bi","powerbi","پاور بی‌آی","پاور بی ای"},
+    "PLC": {"plc","پی ال سی"},
+    "JavaScript": {"javascript","جاوااسکریپت","js"},
+    "React": {"react","ری اکت","ری‌اکت"},
 }
 
-SKILL_PRETTY = {
-    "python":"Python","sql":"SQL","machine learning":"یادگیری ماشین",
-    "deep learning":"یادگیری عمیق","ai":"هوش مصنوعی","excel":"Excel",
-    "power bi":"Power BI","plc":"PLC","javascript":"JavaScript","react":"React",
-}
-
-def normalize_token(t: str) -> str:
-    t = normalize_spaces(normalize_digits(t)).lower()
-    t = t.replace("‌", " ")
-    return t
-
-def scan_known_skills(full_text: str) -> list:
-    t = normalize_token(full_text)
-    hits = []
-    for canon, synonyms in BUILTIN_SKILLS.items():
-        for syn in synonyms:
-            if re.search(rf"(?<![آ-یa-z0-9]){re.escape(syn)}(?![آ-یa-z0-9])", t):
-                hits.append(canon)
-                break
-    # pretty print & de-dup
+def prettify_and_dedup_list(items):
+    # Expect list[str]; normalize, map synonyms to pretty labels, dedup
     seen = set()
     out = []
-    for h in hits:
-        p = SKILL_PRETTY.get(h, h)
-        if p.lower() not in seen:
-            seen.add(p.lower())
-            out.append(p)
+    for it in (items or []):
+        t = normalize_spaces(normalize_digits(str(it))).lower()
+        if not t:
+            continue
+        pretty = None
+        for label, syns in BUILTIN_SKILL_SYNS.items():
+            if any(re.search(rf"(?<![آ-یa-z0-9]){re.escape(s)}(?![آ-یa-z0-9])", t) for s in syns):
+                pretty = label
+                break
+        final = pretty or it.strip()
+        key = final.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(final)
     return out
 
-# =========================================
-# Regex helpers
-# =========================================
-PERS_LET = r"آ-یA-Za-z"
+def list_to_csv(items):
+    return ", ".join([x for x in (items or []) if str(x).strip()])
 
-def has_token(pattern: str, text: str) -> bool:
-    """Match token with pseudo word-boundaries for Persian/Latin."""
-    return re.search(rf"(?<![{PERS_LET}])(?:{pattern})(?![{PERS_LET}])", text) is not None
+# -----------------------------------------------------------------------------
+# Gemma (Ollama) — JSON-only extractor
+# -----------------------------------------------------------------------------
+LLM_SYSTEM = """
+تو یک استخراج‌گر اطلاعات پروفایل هستی. فقط یک JSON خالص و معتبر برگردان؛ هیچ متن اضافی ننویس.
+فیلدها دقیقا این‌ها هستند:
+{
+  "first_name": string,
+  "last_name": string,
+  "age": number | "",
+  "gender": "مرد" | "زن" | "",
+  "experience_years": number | "",
+  "city": string | "",
+  "military_status": "دارد" | "ندارد" | "",
+  "skills": string[],        // فهرست کوتاه مهارت‌ها، یکتا و تمیز
+  "interests": string[]      // فهرست کوتاه علایق
+}
+قواعد:
+- اگر جنسیت صراحتا ذکر نشده بود ولی از نام کوچک بتوان حدس زد، مقدار مناسب قرار بده.
+- اگر چیزی معلوم نبود، مقدار خالی "" یا آرایه خالی [] بده.
+- فقط JSON نتیجه را چاپ کن.
+"""
 
-def extract_name_tokens(s: str):
-    """
-    Heuristics for first/last:
-      - "من علی رضایی هستم" / "نام من علی رضایی است"
-      - "نام خانوادگی من رضایی است" (last only)
-      - Fallback: first two Persian/Latin words (ignoring obvious stop-words)
-    """
-    first, last = "", ""
+def build_llm_user_prompt(transcript: str) -> str:
+    txt = normalize_spaces(normalize_digits(transcript or ""))
+    # Give a couple of in-context examples (very short) to bias format
+    examples = [
+        {
+            "input": "من علی رضایی ۲۸ سالمه، ۴ سال سابقه کار دارم، ساکن تهران. مهارت‌هام پایتون و SQL. علایق: هوش مصنوعی.",
+            "output": {
+                "first_name":"علی","last_name":"رضایی","age":28,"gender":"مرد",
+                "experience_years":4,"city":"تهران","military_status":"",
+                "skills":["Python","SQL"],"interests":["هوش مصنوعی"]
+            }
+        },
+        {
+            "input": "من زهرا احمدی هستم. سه سال تجربه، شهر اصفهان. یادگیری ماشین و اکسل بلدم. به داده‌کاوی علاقه دارم.",
+            "output": {
+                "first_name":"زهرا","last_name":"احمدی","age":"",
+                "gender":"زن","experience_years":3,"city":"اصفهان","military_status":"",
+                "skills":["یادگیری ماشین","Excel"],"interests":["داده‌کاوی"]
+            }
+        }
+    ]
+    return (
+        "رونوشت گفتار کاربر:\n"
+        + txt
+        + "\n\nنمونه‌های قالب درست (برای راهنمایی):\n"
+        + json.dumps(examples, ensure_ascii=False)
+        + "\n\nاکنون فقط JSON نتیجه برای این ورودی را چاپ کن."
+    )
 
-    m = re.search(r"(?:نام\s*خانوادگی|فامیلی)\s+(?P<last>[آ-یA-Za-z]+)", s)
-    if m:
-        last = m.group("last")
-
-    m = re.search(r"(?:نام\s*من|من)\s+(?P<n1>[آ-یA-Za-z]+)(?:\s+(?P<n2>[آ-یA-Za-z]+))?", s)
-    if m:
-        n1 = m.group("n1")
-        n2 = m.group("n2") or ""
-        if n2 and not last:
-            first, last = n1, n2
-        elif n1 and not first:
-            first = n1
-
-    if not last:
-        m = re.search(r"\b([آ-یA-Za-z]+)\s+([آ-یA-Za-z]+)\s+(?:هستم|می\s*باشم|استم)\b", s)
-        if m:
-            first = first or m.group(1)
-            last = m.group(2)
-
-    if not first:
-        tokens = re.findall(r"[آ-یA-Za-z]+", s)
-        bad = {"من","نام","اسم","اینجانب","این","هستم","هست","میباشم","می‌باشم"}
-        tokens = [t for t in tokens if t not in bad]
-        if tokens:
-            first = tokens[0]
-            if len(tokens) > 1 and not last:
-                last = tokens[1]
-    return first, last
-
-def extract_age(s: str):
-    # "۲۸ ساله" / "28 سال" / "سن 28"
-    m = re.search(r"(?:سن\s*)?(\d{1,3})\s*سال(?:ه)?", s)
-    if m:
-        return to_int_or_none(m.group(1))
-    m = re.search(r"سن\s*(\d{1,3})\b", s)
-    if m:
-        return to_int_or_none(m.group(1))
-    return None
-
-def extract_experience_years(s: str):
-    # "سابقه ... X سال" | "X سال سابقه" | "تجربه X سال"
-    m = re.search(r"(?:سابقه(?:\s*کاری)?|تجربه)\s*(?:حدود|نزدیک|حداقل|حداکثر|بیش\s*از|کمتر\s*از)?\s*(\d{1,2})\s*سال", s)
+def extract_json_block(text: str) -> dict:
+    # tolerant to stray tokens—keep first {...} block
+    m = re.search(r"\{.*\}", text, flags=re.S)
     if not m:
-        m = re.search(r"(\d{1,2})\s*سال(?:ه)?\s*(?:سابقه(?:\s*کاری)?|تجربه)", s)
-    if m:
-        return to_int_or_none(m.group(1))
-    return None
+        raise ValueError("No JSON block found")
+    return json.loads(m.group(0))
 
-def extract_city(s: str):
-    m = re.search(rf"{CITY_HINT_WORDS}\s*([آ-یA-Za-z]+)", s)
-    return m.group(1) if m else ""
+def llm_extract(transcript: str) -> dict:
+    if not ollama:
+        raise RuntimeError("Ollama module not available.")
+    resp = ollama.chat(
+        model=OLLAMA_MODEL,
+        messages=[
+            {"role": "system", "content": LLM_SYSTEM.strip()},
+            {"role": "user", "content": build_llm_user_prompt(transcript)}
+        ],
+        options={"temperature": 0.1}
+    )
+    raw = (resp["message"]["content"] or "").strip()
+    return extract_json_block(raw)
 
-def extract_military(s: str):
-    if re.search(MIL_HAVE, s):
-        return "دارد"
-    if re.search(MIL_NOT, s):
-        return "ندارد"
-    return ""
-
-def extract_list_after_anchors(s: str, anchors):
-    """
-    Extracts a comma/،/;/؛/ 'و' separated list after any of the anchor phrases.
-    """
-    for a in anchors:
-        m = re.search(rf"(?:{a})[:：]?\s*([^\n]+)", s, flags=re.IGNORECASE)
-        if m:
-            raw = m.group(1).strip()
-            raw = re.split(r"[.!؟\n]", raw)[0]  # stop at sentence end
-            parts = re.split(LIST_SPLIT, raw)
-            parts = [normalize_spaces(p).strip() for p in parts if normalize_spaces(p).strip()]
-            # de-dup preserve order
-            seen = set(); out = []
-            for p in parts:
-                key = p.lower()
-                if key not in seen:
-                    seen.add(key)
-                    out.append(p)
-            return ", ".join(out)
-    return ""
-
-def merge_csv_like(a: str, b_list: list) -> str:
-    """Merge 'a' (CSV string) with items from 'b_list' (list of strings), de-dup."""
-    a_parts = [x.strip() for x in (a.split(",") if a else []) if x.strip()]
-    seen = {p.lower() for p in a_parts}
-    for item in (b_list or []):
-        if item and item.lower() not in seen:
-            a_parts.append(item)
-            seen.add(item.lower())
-    return ", ".join(a_parts)
-
-def post_infer_gender(first_name: str, current_gender: str) -> str:
-    # explicit beats inference
-    if current_gender in {"مرد","زن"}:
-        return current_gender
-    return guess_gender_from_first_name(first_name) or current_gender
-
-# =========================================
-# NLP: main voice parser (pure local, Persian-aware)
-# =========================================
-def parse_voice_utterance(utter: str) -> dict:
-    s = normalize_spaces(normalize_digits(utter or ""))
-
-    out = {
-        "first_name": "",
-        "last_name": "",
-        "age": "",
-        "gender": "",
-        "experience_years": "",
-        "city": "",
-        "military_status": "",  # دارد | ندارد
-        "skills": "",
-        "interests": "",
+def postprocess_llm_profile(obj: dict) -> dict:
+    # shape defaults
+    obj = obj or {}
+    profile = {
+        "first_name": norm(obj.get("first_name")),
+        "last_name": norm(obj.get("last_name")),
+        "age": to_int_or_empty(obj.get("age")),
+        "gender": norm(obj.get("gender")),
+        "experience_years": to_int_or_empty(obj.get("experience_years")),
+        "city": norm(obj.get("city")),
+        "military_status": norm(obj.get("military_status")),
+        "skills": list(obj.get("skills") or []),
+        "interests": list(obj.get("interests") or []),
     }
 
-    # Names
-    fn, ln = extract_name_tokens(s)
-    out["first_name"], out["last_name"] = fn, ln
+    # Pretty & dedup lists
+    profile["skills"] = prettify_and_dedup_list(profile["skills"])
+    profile["interests"] = prettify_and_dedup_list(profile["interests"])
 
-    # Age
-    age = extract_age(s)
-    if age is not None and 0 < age < 120:
-        out["age"] = age
+    # Gender fallback via name lexicon (only if missing)
+    if profile["gender"] == "":
+        g = gender_from_first_name(profile["first_name"])
+        if g:
+            profile["gender"] = g
 
-    # Experience
-    exp = extract_experience_years(s)
-    if exp is not None and 0 <= exp < 60:
-        out["experience_years"] = exp
+    # Convert lists to CSV for the form inputs in UI
+    profile["skills"] = list_to_csv(profile["skills"])
+    profile["interests"] = list_to_csv(profile["interests"])
+    return profile
 
-    # City
-    out["city"] = extract_city(s)
-
-    # Gender — use true token boundaries (no 'زن' inside 'زندگی')
-    if has_token(r"(خانم|زن)", s):
-        out["gender"] = "زن"
-    elif has_token(r"(آقا|مرد)", s):
-        out["gender"] = "مرد"
-
-    # Fallback infer from first name
-    out["gender"] = post_infer_gender(out["first_name"], out["gender"])
-
-    # Military
-    out["military_status"] = extract_military(s)
-
-    # Skills & Interests
-    anchored_skills = extract_list_after_anchors(s, SKILL_ANCHORS)
-    scanned_skills = scan_known_skills(s)  # full-text dictionary scan
-    out["skills"] = merge_csv_like(anchored_skills, scanned_skills)
-
-    out["interests"] = extract_list_after_anchors(s, INTEREST_ANCHORS)
-
-    return out
-
-# =========================================
+# -----------------------------------------------------------------------------
 # Excel I/O
-# =========================================
+# -----------------------------------------------------------------------------
 COLUMNS = [
     "نام", "نام خانوادگی", "سن", "جنسیت",
     "تعداد سال سابقه کار", "شهر محل سکونت", "وضعیت سربازی",
@@ -335,9 +270,6 @@ COLUMNS = [
 ]
 
 def append_record_to_excel(row: dict, xlsx_path: str):
-    """
-    Appends the row (dict) to the Excel file, creating it with headers if it doesn't exist.
-    """
     df_row = pd.DataFrame([{
         "نام": row.get("first_name", ""),
         "نام خانوادگی": row.get("last_name", ""),
@@ -363,15 +295,11 @@ def append_record_to_excel(row: dict, xlsx_path: str):
     with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
         merged.to_excel(writer, index=False)
 
-# =========================================
+# -----------------------------------------------------------------------------
 # Routes
-# =========================================
+# -----------------------------------------------------------------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
-    """
-    GET -> show form
-    POST -> save record, show success panel and the last record
-    """
     last_record = None
     success = False
 
@@ -379,9 +307,9 @@ def index():
         payload = {
             "first_name": norm(request.form.get("first_name")),
             "last_name": norm(request.form.get("last_name")),
-            "age": to_int_or_none(request.form.get("age")) or "",
+            "age": to_int_or_empty(request.form.get("age")),
             "gender": norm(request.form.get("gender")),
-            "experience_years": to_int_or_none(request.form.get("experience_years")) or "",
+            "experience_years": to_int_or_empty(request.form.get("experience_years")),
             "city": norm(request.form.get("city")),
             "military_status": norm(request.form.get("military_status")),
             "skills": norm(request.form.get("skills")),
@@ -401,20 +329,34 @@ def index():
 @app.route("/nlp/parse", methods=["POST"])
 def nlp_parse():
     """
-    POST JSON: { utterance: "..." }
-    -> returns parsed fields to fill the form (user can edit before submit)
+    POST JSON: { "utterance": "<transcribed text>" }
+    -> Uses Gemma (Ollama) ONLY to extract structured fields.
+    -> Returns JSON for pre-filling the form.
     """
+    if not ollama:
+        return jsonify({"error": "ollama_not_available"}), 500
+
     data = request.get_json(silent=True) or {}
-    utter = norm(data.get("utterance"))
+    utter = normalize_spaces(normalize_digits(norm(data.get("utterance"))))
     if not utter:
         return jsonify({"error": "empty utterance"}), 400
 
-    parsed = parse_voice_utterance(utter)
-    return jsonify(parsed), 200
+    try:
+        raw_profile = llm_extract(utter)
+        profile = postprocess_llm_profile(raw_profile)
+        return jsonify(profile), 200
+    except Exception as e:
+        print("⚠️ LLM extraction error:", e)
+        # Return safe empty profile so UI can still show the form
+        empty = {
+            "first_name":"", "last_name":"", "age":"", "gender":"", "experience_years":"",
+            "city":"", "military_status":"", "skills":"", "interests":""
+        }
+        return jsonify(empty), 200
 
-# =========================================
+# -----------------------------------------------------------------------------
 # Entrypoint
-# =========================================
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Run on 5001 to avoid clashing with your other app
+    # Run on 5001 to avoid clashing with the other app
     app.run(debug=True, port=5001)
