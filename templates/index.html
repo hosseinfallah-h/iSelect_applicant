@@ -4,17 +4,27 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>I-SELECT – ورود اطلاعات افراد (صوت/فرم → Excel)</title>
+    <title>I-SELECT – سامانه هوشمند ثبت اطلاعات متقاضیان</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/particles.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
 
     <style>
+        :root {
+            --primary: #ec4899;
+            --secondary: #8b5cf6;
+            --accent: #3b82f6;
+            --dark: #0a0f2d;
+            --darker: #050814;
+        }
+
         body {
             font-family: 'Vazirmatn', sans-serif;
-            background: radial-gradient(circle at top, #0a0f2d, #050814);
+            background: radial-gradient(circle at top, var(--dark), var(--darker));
             color: #fff;
             min-height: 100vh;
             overflow-x: hidden;
@@ -24,41 +34,51 @@
             position: fixed;
             inset: 0;
             z-index: -1;
-            background: radial-gradient(circle at top, #0a0f2d, #050814);
+            background: radial-gradient(circle at top, var(--dark), var(--darker));
         }
 
         .glass {
             backdrop-filter: blur(25px) saturate(180%);
-            background: rgba(255, 255, 255, .06);
-            border: 1px solid rgba(255, 255, 255, .2);
+            background: rgba(255, 255, 255, .08);
+            border: 1px solid rgba(255, 255, 255, .15);
             border-radius: 1.5rem;
             box-shadow: 0 15px 40px rgba(0, 0, 0, .6);
         }
 
+        .glass-light {
+            backdrop-filter: blur(15px) saturate(160%);
+            background: rgba(255, 255, 255, .05);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 1rem;
+        }
+
         .btn-grad {
-            background: linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6);
-            transition: transform .2s, box-shadow .3s;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            transition: all 0.3s ease;
         }
 
         .btn-grad:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(236, 72, 153, .6);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(236, 72, 153, 0.4);
         }
 
-        /* Voice textarea: responsive, smooth */
         .voice-area {
             resize: none;
             overflow-y: auto;
             min-height: 3.25rem;
-            /* ~2 lines */
             max-height: 40vh;
-            /* viewport-capped */
             line-height: 1.8;
             white-space: pre-wrap;
             word-break: break-word;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+            transition: all 0.3s ease;
+        }
+
+        .voice-area:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.2);
         }
 
         .voice-area::-webkit-scrollbar {
@@ -78,181 +98,773 @@
             font-size: .8rem;
             color: #cbd5e1;
         }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, .1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+
+        .conversation-bubble {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            margin: 8px 0;
+            animation: fadeInUp 0.3s ease;
+            line-height: 1.6;
+        }
+
+        .user-bubble {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(37, 99, 235, 0.4));
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            margin-left: auto;
+            margin-right: 0;
+        }
+
+        .ai-bubble {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(219, 39, 119, 0.4));
+            border: 1px solid rgba(236, 72, 153, 0.5);
+            margin-right: auto;
+            margin-left: 0;
+        }
+
+        .pulse-recording {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7);
+            }
+
+            70% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 10px rgba(236, 72, 153, 0);
+            }
+
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(236, 72, 153, 0);
+            }
+        }
+
+        .file-upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-upload-area:hover,
+        .file-upload-area.dragover {
+            border-color: var(--primary);
+            background: rgba(236, 72, 153, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .form-input {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .feature-card {
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .tab-button {
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-button.active {
+            border-bottom-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .typing-indicator {
+            display: inline-block;
+            position: relative;
+        }
+
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.7);
+            margin: 0 2px;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-indicator span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes typing {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-checkmark {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 2;
+            stroke: #4bb71b;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px #4bb71b;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+        }
+
+        .checkmark__circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 2;
+            stroke-miterlimit: 10;
+            stroke: #4bb71b;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .checkmark__check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        @keyframes stroke {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes scale {
+
+            0%,
+            100% {
+                transform: none;
+            }
+
+            50% {
+                transform: scale3d(1.1, 1.1, 1);
+            }
+        }
+
+        @keyframes fill {
+            100% {
+                box-shadow: inset 0px 0px 0px 30px #4bb71b;
+            }
+        }
     </style>
 </head>
 
-<body class="flex items-start justify-center p-4">
+<body class="flex items-start justify-center p-4 min-h-screen">
     <div id="particles-js"></div>
 
-    <div class="w-full max-w-5xl space-y-4">
-        <!-- Top bar with Admin button -->
-        <header class="glass px-4 sm:px-6 py-3 flex items-center justify-between animate__animated animate__fadeInDown">
-            <div class="text-sm sm:text-base text-white/80">
-                پنل ورود اطلاعات متقاضی (صوت / فرم → Excel)
+    <div class="w-full max-w-6xl space-y-6">
+        <!-- Header Section -->
+        <header class="glass px-6 py-4 flex items-center justify-between animate__animated animate__fadeInDown">
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <div class="bg-gradient-to-r from-pink-500 to-purple-600 p-3 rounded-2xl">
+                    <i class="fas fa-user-tie text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-white">I-SELECT</h1>
+                    <p class="text-sm text-white/70">سامانه هوشمند ثبت اطلاعات متقاضیان</p>
+                </div>
             </div>
-            <a href="http://127.0.0.1:5000/" target="_blank" rel="noopener"
-                class="btn-grad text-white px-4 py-2 rounded-full font-semibold text-sm"
-                title="رفتن به داشبورد ادمین (تحلیل رزومه‌ها)">
-                🧭 داشبورد ادمین
-            </a>
+
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="hidden md:block text-sm text-white/70 text-left">
+                    <div>فایل خروجی: <code
+                            class="text-pink-300 bg-pink-900/30 px-2 py-1 rounded">{{ excel_rel_path }}</code></div>
+                </div>
+                <a href="http://127.0.0.1:5000/" target="_blank" rel="noopener"
+                    class="btn-grad text-white px-5 py-2.5 rounded-full font-semibold text-sm flex items-center space-x-2 space-x-reverse">
+                    <i class="fas fa-chart-line"></i>
+                    <span>داشبورد ادمین</span>
+                </a>
+            </div>
         </header>
 
-        <div class="glass w-full p-6 sm:p-10 animate__animated animate__fadeInUp">
-            <h1 class="text-3xl sm:text-4xl font-extrabold mb-2 text-center text-pink-400">
-                🗂️ I-SELECT – ورود اطلاعات افراد (صوت/فرم → Excel)
-            </h1>
-            <p class="text-center text-sm text-gray-300 mb-6">
-                فایل اکسل مقصد: <code class="text-pink-300">{{ excel_rel_path }}</code>
-            </p>
-
-            {% if success and last_record %}
-            <div class="mb-6 p-4 rounded-xl bg-green-500/15 border border-green-500/20 text-green-100">
-                ✅ رکورد با موفقیت ثبت شد.
-            </div>
-            {% endif %}
-
-            <!-- Voice to form -->
-            <section class="mb-6 space-y-2">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
-                    <button id="voiceBtn" type="button"
-                        class="btn-grad text-white px-5 py-2 rounded-full font-semibold flex items-center justify-center gap-2 shrink-0">
-                        🎤 گفتار کاربر
-                    </button>
-                    <div class="flex-1">
-                        <label for="voiceText" class="sr-only">متن گفتار</label>
-                        <textarea id="voiceText" rows="2" dir="auto"
-                            placeholder="مثال: «من علی رضایی ۲۸ سالمه، ۴ سال سابقه، در تهران؛ مهارت‌ها: Python، SQL؛ علایق: یادگیری ماشین»"
-                            class="voice-area w-full rounded-2xl bg-gray-900/60 text-white/90 border border-white/10 focus:border-pink-500/50 focus:outline-none px-3 py-2 leading-relaxed placeholder:text-white/40"></textarea>
-                        <div class="mt-1 flex items-center justify-between text-xs text-gray-300/80">
-                            <span class="hint">اگر میکروفن پشتیبانی نمی‌شود، اینجا تایپ کنید و «پردازش و پرکردن فرم» را
-                                بزنید.</span>
-                            <span id="charCount" class="hidden sm:inline">۰ کاراکتر</span>
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Sidebar - Features -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Progress Tracker -->
+                <div class="glass p-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-semibold text-white flex items-center space-x-2 space-x-reverse">
+                            <i class="fas fa-tasks text-pink-400"></i>
+                            <span>پیشرفت پر کردن فرم</span>
+                        </h3>
+                        <span id="progressPercent" class="text-lg font-bold text-pink-300">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
+                        <div class="flex items-center space-x-1 space-x-reverse">
+                            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                            <span>تکمیل شده</span>
+                        </div>
+                        <div class="flex items-center space-x-1 space-x-reverse">
+                            <div class="w-2 h-2 rounded-full bg-pink-500"></div>
+                            <span>در انتظار</span>
                         </div>
                     </div>
-                    <div class="flex gap-2 sm:flex-col sm:gap-2 sm:shrink-0">
-                        <button id="fillFromVoice" type="button"
-                            class="px-4 py-2 rounded-full font-semibold bg-white/10 hover:bg-white/20 border border-white/10">
-                            ✨ پردازش و پرکردن فرم
+                </div>
+
+                <!-- Features Cards -->
+                <div class="glass p-5">
+                    <h3 class="font-semibold text-white mb-4 flex items-center space-x-2 space-x-reverse">
+                        <i class="fas fa-star text-yellow-400"></i>
+                        <span>امکانات سامانه</span>
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="feature-card bg-white/5 p-3 rounded-xl">
+                            <div class="flex items-center space-x-2 space-x-reverse">
+                                <i class="fas fa-microphone text-pink-400"></i>
+                                <span class="font-medium">تشخیص گفتار هوشمند</span>
+                            </div>
+                            <p class="text-xs text-white/60 mt-1">صحبت کنید، سیستم به طور خودکار متن را تشخیص می‌دهد</p>
+                        </div>
+                        <div class="feature-card bg-white/5 p-3 rounded-xl">
+                            <div class="flex items-center space-x-2 space-x-reverse">
+                                <i class="fas fa-comments text-blue-400"></i>
+                                <span class="font-medium">گفتگوی تعاملی</span>
+                            </div>
+                            <p class="text-xs text-white/60 mt-1">سیستم سوالات لازم را به صورت مکالمه می‌پرسد</p>
+                        </div>
+                        <div class="feature-card bg-white/5 p-3 rounded-xl">
+                            <div class="flex items-center space-x-2 space-x-reverse">
+                                <i class="fas fa-file-alt text-green-400"></i>
+                                <span class="font-medium">پردازش رزومه</span>
+                            </div>
+                            <p class="text-xs text-white/60 mt-1">آپلود رزومه و استخراج خودکار اطلاعات</p>
+                        </div>
+                        <div class="feature-card bg-white/5 p-3 rounded-xl">
+                            <div class="flex items-center space-x-2 space-x-reverse">
+                                <i class="fas fa-briefcase text-purple-400"></i>
+                                <span class="font-medium">پیشنهاد شغلی</span>
+                            </div>
+                            <p class="text-xs text-white/60 mt-1">دریافت پیشنهادات شغلی متناسب با پروفایل شما</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="glass p-5">
+                    <h3 class="font-semibold text-white mb-4">دسترسی سریع</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="toggleConversation"
+                            class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 py-2 rounded-xl text-sm transition-all flex items-center justify-center space-x-1 space-x-reverse">
+                            <i class="fas fa-comment-dots"></i>
+                            <span>گفتگوی هوشمند</span>
                         </button>
-                        <button id="clearVoice" type="button"
-                            class="px-4 py-2 rounded-full font-semibold bg-white/5 hover:bg-white/15 border border-white/10">
-                            🧹 پاک کردن
+                        <button id="clearAll"
+                            class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 py-2 rounded-xl text-sm transition-all flex items-center justify-center space-x-1 space-x-reverse">
+                            <i class="fas fa-broom"></i>
+                            <span>پاک کردن همه</span>
+                        </button>
+                        <button id="generateInsights"
+                            class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 py-2 rounded-xl text-sm transition-all flex items-center justify-center space-x-1 space-x-reverse">
+                            <i class="fas fa-brain"></i>
+                            <span>تجزیه و تحلیل</span>
+                        </button>
+                        <button
+                            class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 py-2 rounded-xl text-sm transition-all flex items-center justify-center space-x-1 space-x-reverse">
+                            <i class="fas fa-download"></i>
+                            <span>ذخیره اطلاعات</span>
                         </button>
                     </div>
-                </div>
-            </section>
-
-            <!-- Manual form -->
-            <form method="post" action="/" class="space-y-6">
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block mb-2 text-pink-200 font-semibold">نام</label>
-                        <input name="first_name" type="text"
-                            class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
-                    </div>
-                    <div>
-                        <label class="block mb-2 text-pink-200 font-semibold">نام خانوادگی</label>
-                        <input name="last_name" type="text"
-                            class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
-                    </div>
-                </div>
-
-                <div class="grid md:grid-cols-3 gap-6">
-                    <div>
-                        <label class="block mb-2 text-pink-200 font-semibold">سن</label>
-                        <input name="age" type="number" min="0"
-                            class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
-                    </div>
-                    <div>
-                        <label class="block mb-2 text-pink-200 font-semibold">جنسیت</label>
-                        <select name="gender"
-                            class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10">
-                            <option value=""></option>
-                            <option value="مرد">مرد</option>
-                            <option value="زن">زن</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block mb-2 text-pink-200 font-semibold">تعداد سال سابقه کار</label>
-                        <input name="experience_years" type="number" min="0"
-                            class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
-                    </div>
-                </div>
-
-                <div class="grid md:grid-cols-3 gap-6">
-                    <div>
-                        <label class="block mb-2 text-pink-200 font-semibold">شهر محل سکونت</label>
-                        <input name="city" type="text"
-                            class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
-                    </div>
-                    <div>
-                        <label class="block mb-2 text-pink-200 font-semibold">وضعیت سربازی</label>
-                        <select name="military_status"
-                            class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10">
-                            <option value=""></option>
-                            <option value="دارد">دارد</option>
-                            <option value="ندارد">ندارد</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block mb-2 text-pink-200 font-semibold">مهارت های کلیدی</label>
-                    <input name="skills" type="text" placeholder="مثلاً: Python, SQL, PLC"
-                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
-                </div>
-
-                <div>
-                    <label class="block mb-2 text-pink-200 font-semibold">علایق</label>
-                    <input name="interests" type="text" placeholder="مثلاً: هوش مصنوعی، یادگیری ماشین"
-                        class="w-full p-3 rounded-xl bg-gray-900/60 text-white border border-white/10" />
-                </div>
-
-                <div class="text-center">
-                    <button type="submit" class="btn-grad text-white px-10 py-3 rounded-full font-semibold">
-                        ارسال اطلاعات
-                    </button>
-                </div>
-            </form>
-
-            <!-- Last record preview -->
-            {% if success and last_record %}
-            <div class="mt-8 p-4 rounded-xl bg-white/10 border border-white/10">
-                <h3 class="text-xl font-bold text-pink-300 mb-3">🧾 آخرین رکورد ثبت‌شده</h3>
-                <div class="grid md:grid-cols-2 gap-2 text-sm text-gray-100">
-                    <div><b>نام:</b> {{ last_record.first_name }}</div>
-                    <div><b>نام خانوادگی:</b> {{ last_record.last_name }}</div>
-                    <div><b>سن:</b> {{ last_record.age }}</div>
-                    <div><b>جنسیت:</b> {{ last_record.gender }}</div>
-                    <div><b>سابقه کار (سال):</b> {{ last_record.experience_years }}</div>
-                    <div><b>شهر:</b> {{ last_record.city }}</div>
-                    <div><b>وضعیت سربازی:</b> {{ last_record.military_status }}</div>
-                    <div class="md:col-span-2"><b>مهارت‌ها:</b> {{ last_record.skills }}</div>
-                    <div class="md:col-span-2"><b>علایق:</b> {{ last_record.interests }}</div>
                 </div>
             </div>
-            {% endif %}
+
+            <!-- Main Content Area -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Success Message -->
+                {% if success and last_record %}
+                <div
+                    class="glass p-4 rounded-xl bg-gradient-to-r from-green-500/20 to-emerald-500/10 border border-green-500/20 flex items-center space-x-3 space-x-reverse animate__animated animate__fadeIn">
+                    <svg class="success-checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                        <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none" />
+                        <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+                    </svg>
+                    <div>
+                        <h4 class="font-semibold text-green-300">رکورد با موفقیت ثبت شد!</h4>
+                        <p class="text-sm text-green-200/80">اطلاعات شما در سیستم ذخیره گردید.</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Tabs Navigation -->
+                <div class="glass p-1 rounded-2xl flex">
+                    <button class="tab-button flex-1 py-3 text-center font-medium active" data-tab="voice">
+                        <i class="fas fa-microphone mr-2"></i>
+                        ورود صوتی
+                    </button>
+                    <button class="tab-button flex-1 py-3 text-center font-medium" data-tab="conversation">
+                        <i class="fas fa-comments mr-2"></i>
+                        گفتگوی هوشمند
+                    </button>
+                    <button class="tab-button flex-1 py-3 text-center font-medium" data-tab="upload">
+                        <i class="fas fa-file-upload mr-2"></i>
+                        آپلود رزومه
+                    </button>
+                </div>
+
+                <!-- Voice Input Tab -->
+                <div id="voice-tab" class="tab-content fade-in">
+                    <div class="glass p-6">
+                        <h2 class="text-xl font-bold text-white mb-4 flex items-center space-x-2 space-x-reverse">
+                            <i class="fas fa-microphone text-pink-400"></i>
+                            <span>ورود اطلاعات از طریق گفتار</span>
+                        </h2>
+
+                        <div class="space-y-4">
+                            <div class="flex flex-col md:flex-row gap-4 items-start">
+                                <button id="voiceBtn" type="button"
+                                    class="btn-grad text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 space-x-reverse shrink-0 w-full md:w-auto">
+                                    <i class="fas fa-microphone"></i>
+                                    <span>شروع صحبت</span>
+                                </button>
+                                <div class="flex-1 w-full">
+                                    <label for="voiceText" class="sr-only">متن گفتار</label>
+                                    <textarea id="voiceText" rows="3" dir="auto"
+                                        placeholder="مثال: «من علی رضایی ۲۸ سالمه، ۴ سال سابقه کار در زمینه برنامه‌نویسی دارم، ساکن تهران هستم. مهارت‌هایم شامل Python، SQL و Django است. به حوزه‌های هوش مصنوعی و یادگیری ماشین علاقه‌مندم.»"
+                                        class="voice-area w-full rounded-xl bg-gray-900/40 text-white/90 border border-white/10 focus:border-pink-500 focus:outline-none px-4 py-3 leading-relaxed placeholder:text-white/40"></textarea>
+                                    <div class="mt-2 flex items-center justify-between text-xs text-gray-300/80">
+                                        <span class="hint">پس از ۳ ثانیه سکوت، گفتار به صورت خودکار پردازش می‌شود</span>
+                                        <span id="charCount" class="hidden sm:inline">۰ کاراکتر</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2 justify-center md:justify-start">
+                                <button id="fillFromVoice" type="button"
+                                    class="px-5 py-2.5 rounded-xl font-semibold bg-white/10 hover:bg-white/20 border border-white/10 transition-all flex items-center space-x-2 space-x-reverse">
+                                    <i class="fas fa-magic"></i>
+                                    <span>پردازش و پرکردن فرم</span>
+                                </button>
+                                <button id="clearVoice" type="button"
+                                    class="px-5 py-2.5 rounded-xl font-semibold bg-white/5 hover:bg-white/15 border border-white/10 transition-all flex items-center space-x-2 space-x-reverse">
+                                    <i class="fas fa-eraser"></i>
+                                    <span>پاک کردن متن</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Conversation Tab -->
+                <div id="conversation-tab" class="tab-content hidden fade-in">
+                    <div class="glass p-6">
+                        <h2 class="text-xl font-bold text-white mb-4 flex items-center space-x-2 space-x-reverse">
+                            <i class="fas fa-comments text-blue-400"></i>
+                            <span>گفتگوی هوشمند برای تکمیل اطلاعات</span>
+                        </h2>
+
+                        <div id="conversationContainer" class="mb-4">
+                            <div id="conversation"
+                                class="h-64 overflow-y-auto p-4 rounded-xl bg-gray-900/40 border border-white/10 space-y-3">
+                                <div class="conversation-bubble ai-bubble">
+                                    <div class="font-semibold text-blue-300 mb-1">I-SELECT</div>
+                                    سلام! من دستیار هوشمند I-SELECT هستم. می‌تونم کمکتون کنم اطلاعاتتون رو به صورت
+                                    مکالمه کامل کنیم. لطفاً خودتون رو معرفی کنید.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <input type="text" id="conversationInput" placeholder="پاسخ خود را اینجا تایپ کنید..."
+                                class="flex-1 p-3 rounded-xl bg-gray-900/40 text-white border border-white/10 focus:border-blue-500 focus:outline-none">
+                            <button id="sendMessage" class="btn-grad text-white px-5 py-3 rounded-xl font-semibold">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Tab -->
+                <div id="upload-tab" class="tab-content hidden fade-in">
+                    <div class="glass p-6">
+                        <h2 class="text-xl font-bold text-white mb-4 flex items-center space-x-2 space-x-reverse">
+                            <i class="fas fa-file-upload text-green-400"></i>
+                            <span>آپلود و پردازش رزومه</span>
+                        </h2>
+
+                        <div id="fileUploadArea"
+                            class="file-upload-area rounded-2xl p-8 text-center cursor-pointer transition-all mb-4">
+                            <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.txt" class="hidden" />
+                            <div class="space-y-4">
+                                <div class="text-5xl text-white/60">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <p class="text-white/80 text-lg">رزومه خود را اینجا رها کنید یا برای انتخاب کلیک کنید
+                                </p>
+                                <p class="text-sm text-white/60">فرمت‌های مجاز: PDF, Word, Text</p>
+                            </div>
+                        </div>
+
+                        <div id="fileUploadProgress" class="hidden">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-white/80">در حال پردازش فایل...</span>
+                                <span id="uploadProgressPercent" class="font-semibold text-green-400">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div id="uploadProgressFill" class="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Form -->
+                <form method="post" action="/" class="space-y-6" id="mainForm">
+                    <div class="glass p-6">
+                        <h2 class="text-xl font-bold text-white mb-6 flex items-center space-x-2 space-x-reverse">
+                            <i class="fas fa-user-edit text-purple-400"></i>
+                            <span>فرم اطلاعات فردی</span>
+                        </h2>
+
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <label
+                                    class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                    <i class="fas fa-user text-pink-400 text-sm"></i>
+                                    <span>نام</span>
+                                </label>
+                                <input name="first_name" type="text" data-field="first_name"
+                                    class="form-input w-full p-3 rounded-xl text-white" />
+                            </div>
+                            <div>
+                                <label
+                                    class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                    <i class="fas fa-users text-pink-400 text-sm"></i>
+                                    <span>نام خانوادگی</span>
+                                </label>
+                                <input name="last_name" type="text" data-field="last_name"
+                                    class="form-input w-full p-3 rounded-xl text-white" />
+                            </div>
+                        </div>
+
+                        <div class="grid md:grid-cols-3 gap-6 mt-6">
+                            <div>
+                                <label
+                                    class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                    <i class="fas fa-birthday-cake text-blue-400 text-sm"></i>
+                                    <span>سن</span>
+                                </label>
+                                <input name="age" type="number" min="0" data-field="age"
+                                    class="form-input w-full p-3 rounded-xl text-white" />
+                            </div>
+                            <div>
+                                <label
+                                    class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                    <i class="fas fa-venus-mars text-blue-400 text-sm"></i>
+                                    <span>جنسیت</span>
+                                </label>
+                                <select name="gender" data-field="gender"
+                                    class="form-input w-full p-3 rounded-xl text-white">
+                                    <option value=""></option>
+                                    <option value="مرد">مرد</option>
+                                    <option value="زن">زن</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label
+                                    class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                    <i class="fas fa-briefcase text-blue-400 text-sm"></i>
+                                    <span>سال سابقه کار</span>
+                                </label>
+                                <input name="experience_years" type="number" min="0" data-field="experience_years"
+                                    class="form-input w-full p-3 rounded-xl text-white" />
+                            </div>
+                        </div>
+
+                        <div class="grid md:grid-cols-2 gap-6 mt-6">
+                            <div>
+                                <label
+                                    class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                    <i class="fas fa-city text-green-400 text-sm"></i>
+                                    <span>شهر محل سکونت</span>
+                                </label>
+                                <input name="city" type="text" data-field="city"
+                                    class="form-input w-full p-3 rounded-xl text-white" />
+                            </div>
+                            <div>
+                                <label
+                                    class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                    <i class="fas fa-shield-alt text-green-400 text-sm"></i>
+                                    <span>وضعیت سربازی</span>
+                                </label>
+                                <select name="military_status" data-field="military_status"
+                                    class="form-input w-full p-3 rounded-xl text-white">
+                                    <option value=""></option>
+                                    <option value="دارد">دارد</option>
+                                    <option value="ندارد">ندارد</option>
+                                    <option value="معاف">معاف</option>
+                                    <option value="در حال خدمت">در حال خدمت</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mt-6">
+                            <label
+                                class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                <i class="fas fa-tools text-yellow-400 text-sm"></i>
+                                <span>مهارت های کلیدی</span>
+                            </label>
+                            <input name="skills" type="text" placeholder="مثلاً: Python, SQL, Django, React, Docker"
+                                data-field="skills" class="form-input w-full p-3 rounded-xl text-white" />
+                        </div>
+
+                        <div class="mt-6">
+                            <label
+                                class="block mb-2 text-white font-semibold flex items-center space-x-1 space-x-reverse">
+                                <i class="fas fa-heart text-red-400 text-sm"></i>
+                                <span>علایق و زمینه‌های مورد علاقه</span>
+                            </label>
+                            <input name="interests" type="text"
+                                placeholder="مثلاً: هوش مصنوعی، یادگیری ماشین، توسعه وب، امنیت اطلاعات"
+                                data-field="interests" class="form-input w-full p-3 rounded-xl text-white" />
+                        </div>
+                    </div>
+
+                    <!-- AI Insights Section -->
+                    <div id="aiInsights" class="hidden space-y-4">
+                        <!-- AI Recommendations -->
+                        <div id="aiRecommendations"
+                            class="glass p-5 rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+                            <h4 class="font-semibold text-blue-300 mb-3 flex items-center space-x-2 space-x-reverse">
+                                <i class="fas fa-briefcase"></i>
+                                <span>پیشنهادهای شغلی متناسب با پروفایل شما</span>
+                            </h4>
+                            <div id="jobSuggestions" class="text-sm text-gray-200 space-y-2"></div>
+                        </div>
+
+                        <!-- AI Summary -->
+                        <div id="aiSummary"
+                            class="glass p-5 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+                            <h4 class="font-semibold text-purple-300 mb-3 flex items-center space-x-2 space-x-reverse">
+                                <i class="fas fa-file-alt"></i>
+                                <span>خلاصه پروفایل حرفه‌ای</span>
+                            </h4>
+                            <div id="summaryText" class="text-sm text-gray-200 leading-relaxed"></div>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                        <button type="submit"
+                            class="btn-grad text-white px-10 py-3.5 rounded-xl font-semibold text-lg flex items-center space-x-2 space-x-reverse">
+                            <i class="fas fa-save"></i>
+                            <span>ثبت نهایی اطلاعات</span>
+                        </button>
+                        <button type="button" id="manualInsights"
+                            class="px-8 py-3.5 rounded-xl font-semibold bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-white transition-all flex items-center space-x-2 space-x-reverse">
+                            <i class="fas fa-brain"></i>
+                            <span>تولید پیشنهادات هوشمند</span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Last Record Preview -->
+                {% if success and last_record %}
+                <div class="glass p-5 rounded-xl border border-white/10 mt-6">
+                    <h3 class="text-xl font-bold text-pink-300 mb-4 flex items-center space-x-2 space-x-reverse">
+                        <i class="fas fa-history"></i>
+                        <span>آخرین رکورد ثبت‌شده</span>
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-100">
+                        <div class="bg-white/5 p-3 rounded-lg"><b>نام:</b> {{ last_record.first_name }}</div>
+                        <div class="bg-white/5 p-3 rounded-lg"><b>نام خانوادگی:</b> {{ last_record.last_name }}</div>
+                        <div class="bg-white/5 p-3 rounded-lg"><b>سن:</b> {{ last_record.age }}</div>
+                        <div class="bg-white/5 p-3 rounded-lg"><b>جنسیت:</b> {{ last_record.gender }}</div>
+                        <div class="bg-white/5 p-3 rounded-lg"><b>سابقه کار (سال):</b> {{ last_record.experience_years
+                            }}</div>
+                        <div class="bg-white/5 p-3 rounded-lg"><b>شهر:</b> {{ last_record.city }}</div>
+                        <div class="bg-white/5 p-3 rounded-lg"><b>وضعیت سربازی:</b> {{ last_record.military_status }}
+                        </div>
+                        <div class="md:col-span-2 bg-white/5 p-3 rounded-lg"><b>مهارت‌ها:</b> {{ last_record.skills }}
+                        </div>
+                        <div class="md:col-span-2 bg-white/5 p-3 rounded-lg"><b>علایق:</b> {{ last_record.interests }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
         </div>
+
+        <!-- Footer -->
+        <footer class="glass px-6 py-4 text-center text-white/60 text-sm">
+            <p>I-SELECT &copy; 2023 - سامانه هوشمند ثبت و مدیریت اطلاعات متقاضیان</p>
+        </footer>
     </div>
 
     <script>
-        // Particles
+        // Initialize Particles.js
         particlesJS("particles-js", {
             particles: {
-                number: { value: 100 }, color: { value: "#ec4899" }, shape: { type: "circle" }, opacity: { value: 0.3 }, size: { value: 3 },
-                line_linked: { enable: true, distance: 140, color: "#3b82f6", opacity: 0.3, width: 1 }, move: { enable: true, speed: 2 }
+                number: { value: 80, density: { enable: true, value_area: 800 } },
+                color: { value: "#ec4899" },
+                shape: { type: "circle" },
+                opacity: { value: 0.3, random: true },
+                size: { value: 3, random: true },
+                line_linked: {
+                    enable: true,
+                    distance: 150,
+                    color: "#3b82f6",
+                    opacity: 0.2,
+                    width: 1
+                },
+                move: { enable: true, speed: 2, direction: "none", random: true }
             },
-            interactivity: { events: { onhover: { enable: true, mode: "grab" } }, modes: { grab: { distance: 200, line_linked: { opacity: 0.5 } } } },
+            interactivity: {
+                detect_on: "canvas",
+                events: {
+                    onhover: { enable: true, mode: "grab" },
+                    onclick: { enable: true, mode: "push" }
+                },
+                modes: {
+                    grab: { distance: 200, line_linked: { opacity: 0.5 } },
+                    push: { particles_nb: 4 }
+                }
+            },
             retina_detect: true
         });
 
-        // Voice UI
+        // State management
+        let conversationMode = false;
+        let currentQuestion = null;
+        let recognition = null;
+        let isRecording = false;
+        let silenceTimer;
+
+        // DOM elements
         const voiceBtn = document.getElementById("voiceBtn");
         const voiceText = document.getElementById("voiceText");
         const fillBtn = document.getElementById("fillFromVoice");
         const clearBtn = document.getElementById("clearVoice");
         const charCount = document.getElementById("charCount");
+        const conversationContainer = document.getElementById("conversationContainer");
+        const conversation = document.getElementById("conversation");
+        const conversationInput = document.getElementById("conversationInput");
+        const sendMessageBtn = document.getElementById("sendMessage");
+        const toggleConversationBtn = document.getElementById("toggleConversation");
+        const clearAllBtn = document.getElementById("clearAll");
+        const generateInsightsBtn = document.getElementById("generateInsights");
+        const manualInsightsBtn = document.getElementById("manualInsights");
+        const fileUploadArea = document.getElementById("fileUploadArea");
+        const resumeFile = document.getElementById("resumeFile");
+        const uploadProgress = document.getElementById("fileUploadProgress");
+        const uploadProgressFill = document.getElementById("uploadProgressFill");
+        const uploadProgressPercent = document.getElementById("uploadProgressPercent");
+        const progressFill = document.getElementById("progressFill");
+        const progressPercent = document.getElementById("progressPercent");
+        const aiInsights = document.getElementById("aiInsights");
+        const aiRecommendations = document.getElementById("aiRecommendations");
+        const jobSuggestions = document.getElementById("jobSuggestions");
+        const aiSummary = document.getElementById("aiSummary");
+        const summaryText = document.getElementById("summaryText");
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
 
+        // Tab switching functionality
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+
+                // Update active tab button
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+
+                // Show active tab content
+                tabContents.forEach(content => {
+                    content.classList.add('hidden');
+                    if (content.id === `${tabId}-tab`) {
+                        content.classList.remove('hidden');
+                    }
+                });
+            });
+        });
+
+        // Progress tracking
+        function updateProgress() {
+            const fields = document.querySelectorAll('.field-input');
+            let filled = 0;
+            fields.forEach(field => {
+                if (field.value && field.value.toString().trim() !== '') {
+                    filled++;
+                }
+            });
+            const percent = Math.round((filled / fields.length) * 100);
+            progressFill.style.width = `${percent}%`;
+            progressPercent.textContent = `${percent}%`;
+        }
+
+        // Initialize progress tracking
+        document.querySelectorAll('.field-input').forEach(field => {
+            field.addEventListener('input', updateProgress);
+        });
+        updateProgress();
+
+        // Voice UI with real-time transcription and auto-stop
         function autoGrow(el) {
             el.style.height = '0px';
             const maxH = window.innerHeight * 0.4;
@@ -260,30 +872,96 @@
             el.scrollTop = el.scrollHeight;
             if (charCount) charCount.textContent = (el.value.length.toLocaleString('fa-IR')) + ' کاراکتر';
         }
+
         voiceText.addEventListener('input', () => autoGrow(voiceText));
         window.addEventListener('resize', () => autoGrow(voiceText), { passive: true });
         autoGrow(voiceText);
 
-        let recognition = null;
+        // Enhanced Speech Recognition with auto-stop after 3 seconds of silence
         (function initSTT() {
             try {
                 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!SR) return;
+                if (!SR) {
+                    voiceBtn.disabled = true;
+                    voiceBtn.innerHTML = '<i class="fas fa-microphone-slash"></i><span>مرورگر پشتیبانی نمی‌کند</span>';
+                    return;
+                }
+
                 recognition = new SR();
                 recognition.lang = "fa-IR";
-                recognition.interimResults = false;
+                recognition.continuous = true;
+                recognition.interimResults = true;
                 recognition.maxAlternatives = 1;
 
                 recognition.addEventListener("result", (e) => {
-                    const t = e.results[0][0]?.transcript || "";
-                    voiceText.value = (t || "").trim();
-                    requestAnimationFrame(() => autoGrow(voiceText));
+                    let final = '';
+                    let interim = '';
+
+                    for (let i = e.resultIndex; i < e.results.length; i++) {
+                        const transcript = e.results[i][0].transcript;
+                        if (e.results[i].isFinal) {
+                            final += transcript;
+                        } else {
+                            interim += transcript;
+                        }
+                    }
+
+                    // Reset silence timer when speech is detected
+                    clearTimeout(silenceTimer);
+                    if (interim || final) {
+                        silenceTimer = setTimeout(() => {
+                            if (isRecording) {
+                                recognition.stop();
+                                isRecording = false;
+                                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
+                                voiceBtn.classList.remove("pulse-recording");
+
+                                // Auto-process the text if there's content
+                                if (voiceText.value.trim()) {
+                                    setTimeout(() => {
+                                        fillBtn.click();
+                                    }, 500);
+                                }
+                            }
+                        }, 3000); // 3 seconds of silence
+                    }
+
+                    if (final) {
+                        voiceText.value = final;
+                        autoGrow(voiceText);
+                    } else if (interim) {
+                        // Show real-time transcription
+                        voiceText.value = interim;
+                        autoGrow(voiceText);
+                    }
                 });
+
                 recognition.addEventListener("end", () => {
                     voiceBtn.disabled = false;
-                    voiceBtn.textContent = "🎤 گفتار کاربر";
+                    voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
+                    voiceBtn.classList.remove("pulse-recording");
+                    isRecording = false;
+                    clearTimeout(silenceTimer);
                 });
-            } catch (e) { console.warn("SpeechRecognition init error:", e); }
+
+                recognition.addEventListener("error", (e) => {
+                    console.error("Speech recognition error:", e.error);
+                    voiceBtn.disabled = false;
+                    voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
+                    voiceBtn.classList.remove("pulse-recording");
+                    isRecording = false;
+                    clearTimeout(silenceTimer);
+
+                    if (e.error === 'not-allowed') {
+                        alert('دسترسی به میکروفون مجاز نیست. لطفاً تنظیمات مرورگر خود را بررسی کنید.');
+                    }
+                });
+
+            } catch (e) {
+                console.warn("SpeechRecognition init error:", e);
+                voiceBtn.disabled = true;
+                voiceBtn.innerHTML = '<i class="fas fa-microphone-slash"></i><span>خطا در راه‌اندازی</span>';
+            }
         })();
 
         voiceBtn?.addEventListener("click", () => {
@@ -291,9 +969,20 @@
                 alert("مرورگر شما از تشخیص گفتار پشتیبانی نمی‌کند. لطفاً متن را در کادر بالا تایپ کنید.");
                 return;
             }
-            voiceBtn.disabled = true;
-            voiceBtn.textContent = "⏺️ در حال گوش دادن…";
-            recognition.start();
+
+            if (isRecording) {
+                recognition.stop();
+                isRecording = false;
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
+                voiceBtn.classList.remove("pulse-recording");
+                clearTimeout(silenceTimer);
+            } else {
+                voiceBtn.disabled = true;
+                voiceBtn.innerHTML = '<i class="fas fa-circle"></i><span>در حال ضبط...</span>';
+                voiceBtn.classList.add("pulse-recording");
+                recognition.start();
+                isRecording = true;
+            }
         });
 
         clearBtn?.addEventListener("click", () => {
@@ -302,38 +991,354 @@
             voiceText.focus();
         });
 
+        // Conversation functionality
+        toggleConversationBtn?.addEventListener("click", () => {
+            // Switch to conversation tab
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector('[data-tab="conversation"]').classList.add('active');
+
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+                if (content.id === 'conversation-tab') {
+                    content.classList.remove('hidden');
+                }
+            });
+
+            if (!conversationMode) {
+                startConversation();
+            }
+        });
+
+        async function startConversation() {
+            try {
+                addMessage('در حال اتصال به دستیار هوشمند...', 'ai', true);
+                const res = await fetch("/conversation/start", { method: "POST" });
+                const data = await res.json();
+                removeTypingIndicator();
+                currentQuestion = data.question;
+                addMessage(data.question, 'ai');
+            } catch (e) {
+                console.error("Conversation start error:", e);
+                removeTypingIndicator();
+                addMessage("⚠️ خطا در برقراری ارتباط با سرور. لطفاً دوباره تلاش کنید.", 'ai');
+            }
+        }
+
+        function addMessage(text, sender, isTyping = false) {
+            const bubble = document.createElement('div');
+            bubble.className = `conversation-bubble ${sender}-bubble`;
+
+            if (isTyping) {
+                bubble.innerHTML = `
+                    <div class="font-semibold ${sender === 'ai' ? 'text-blue-300' : 'text-white'} mb-1">${sender === 'ai' ? 'I-SELECT' : 'شما'}</div>
+                    <div class="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                `;
+            } else {
+                bubble.innerHTML = `
+                    <div class="font-semibold ${sender === 'ai' ? 'text-blue-300' : 'text-white'} mb-1">${sender === 'ai' ? 'I-SELECT' : 'شما'}</div>
+                    <div>${text}</div>
+                `;
+            }
+
+            conversation.appendChild(bubble);
+            conversation.scrollTop = conversation.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const typingIndicator = document.querySelector('.typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.parentElement.parentElement.remove();
+            }
+        }
+
+        sendMessageBtn?.addEventListener("click", sendMessage);
+        conversationInput?.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const userMessage = conversationInput.value.trim();
+            if (!userMessage) return;
+
+            conversationInput.value = '';
+            addMessage(userMessage, 'user');
+            processConversation(userMessage);
+        }
+
+        async function processConversation(userMessage) {
+            addMessage('', 'ai', true);
+
+            try {
+                const res = await fetch("/conversation/respond", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: userMessage })
+                });
+                const data = await res.json();
+                removeTypingIndicator();
+
+                if (data.question) {
+                    addMessage(data.question, 'ai');
+                    currentQuestion = data.question;
+                }
+
+                if (data.update_fields) {
+                    updateFormFields(data.update_fields);
+                    updateProgress();
+                }
+
+                if (data.completed) {
+                    addMessage("✅ اطلاعات شما کامل شد! در حال تولید پیشنهادات شغلی و خلاصه پروفایل...", 'ai');
+                    setTimeout(generateAIInsights, 1500);
+                }
+
+            } catch (e) {
+                console.error("Conversation error:", e);
+                removeTypingIndicator();
+                addMessage("⚠️ خطا در پردازش پاسخ. لطفاً دوباره امتحان کنید.", 'ai');
+            }
+        }
+
+        // File upload handling
+        fileUploadArea?.addEventListener('click', () => resumeFile.click());
+
+        fileUploadArea?.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.add('dragover');
+        });
+
+        fileUploadArea?.addEventListener('dragleave', () => {
+            fileUploadArea.classList.remove('dragover');
+        });
+
+        fileUploadArea?.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+
+        resumeFile?.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        async function handleFileUpload(file) {
+            if (!file.type.includes('pdf') && !file.type.includes('word') && !file.type.includes('text') && !file.name.match(/\.(pdf|doc|docx|txt)$/i)) {
+                alert('لطفاً فقط فایل‌های PDF، Word یا Text آپلود کنید.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('resume', file);
+
+            uploadProgress.classList.remove('hidden');
+            uploadProgressFill.style.width = '30%';
+            uploadProgressPercent.textContent = '30%';
+
+            try {
+                const res = await fetch('/parse/resume', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                uploadProgressFill.style.width = '80%';
+                uploadProgressPercent.textContent = '80%';
+
+                const data = await res.json();
+
+                if (data.success) {
+                    updateFormFields(data.fields);
+                    updateProgress();
+                    uploadProgressFill.style.width = '100%';
+                    uploadProgressPercent.textContent = '100%';
+
+                    setTimeout(() => {
+                        uploadProgress.classList.add('hidden');
+                        // Switch to voice tab to show the filled form
+                        document.querySelector('[data-tab="voice"]').click();
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'خطا در پردازش فایل');
+                }
+            } catch (e) {
+                console.error('File upload error:', e);
+                alert('خطا در آپلود فایل: ' + e.message);
+                uploadProgress.classList.add('hidden');
+            }
+        }
+
+        // Form filling and AI features
         fillBtn?.addEventListener("click", async () => {
             const utter = (voiceText.value || "").trim();
             if (!utter) {
                 alert("ابتدا صحبت کنید یا متنی بنویسید، سپس پردازش کنید.");
                 return;
             }
+            await fillFormFromText(utter);
+        });
+
+        async function fillFormFromText(text) {
             try {
+                fillBtn.disabled = true;
+                fillBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>در حال پردازش...</span>';
+
                 const res = await fetch("/nlp/parse", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ utterance: utter })
+                    body: JSON.stringify({ utterance: text })
                 });
+
                 if (!res.ok) throw new Error("NLP parse failed");
                 const data = await res.json();
 
-                const setVal = (sel, v) => { const el = document.querySelector(sel); if (el != null && v != null) { el.value = v; } };
-                setVal('input[name="first_name"]', data.first_name || "");
-                setVal('input[name="last_name"]', data.last_name || "");
-                setVal('input[name="age"]', data.age || "");
-                setVal('select[name="gender"]', data.gender || "");
-                setVal('input[name="experience_years"]', data.experience_years || "");
-                setVal('input[name="city"]', data.city || "");
-                setVal('select[name="military_status"]', data.military_status || "");
-                setVal('input[name="skills"]', data.skills || "");
-                setVal('input[name="interests"]', data.interests || "");
+                updateFormFields(data);
+                updateProgress();
 
-                fillBtn.textContent = "✅ فرم پر شد";
-                setTimeout(() => fillBtn.textContent = "✨ پردازش و پرکردن فرم", 1200);
+                fillBtn.innerHTML = '<i class="fas fa-check"></i><span>فرم پر شد</span>';
+                setTimeout(() => {
+                    fillBtn.innerHTML = '<i class="fas fa-magic"></i><span>پردازش و پرکردن فرم</span>';
+                    fillBtn.disabled = false;
+                }, 2000);
+
+                // Generate AI insights after form is filled
+                setTimeout(generateAIInsights, 1000);
             } catch (e) {
                 console.error(e);
                 alert("خطا در پردازش متن. دوباره امتحان کنید.");
+                fillBtn.innerHTML = '<i class="fas fa-magic"></i><span>پردازش و پرکردن فرم</span>';
+                fillBtn.disabled = false;
             }
+        }
+
+        function updateFormFields(fields) {
+            const setVal = (sel, v) => {
+                const el = document.querySelector(sel);
+                if (el != null && v != null) {
+                    el.value = v;
+                }
+            };
+            setVal('input[name="first_name"]', fields.first_name || "");
+            setVal('input[name="last_name"]', fields.last_name || "");
+            setVal('input[name="age"]', fields.age || "");
+            setVal('select[name="gender"]', fields.gender || "");
+            setVal('input[name="experience_years"]', fields.experience_years || "");
+            setVal('input[name="city"]', fields.city || "");
+            setVal('select[name="military_status"]', fields.military_status || "");
+            setVal('input[name="skills"]', fields.skills || "");
+            setVal('input[name="interests"]', fields.interests || "");
+        }
+
+        // AI Insights functionality
+        generateInsightsBtn?.addEventListener('click', generateAIInsights);
+        manualInsightsBtn?.addEventListener('click', generateAIInsights);
+
+        function generateAIInsights() {
+            const formData = new FormData(document.getElementById('mainForm'));
+            const data = Object.fromEntries(formData);
+
+            // Only generate insights if form is sufficiently filled
+            const filledFields = Object.values(data).filter(val => val && val.toString().trim() !== '').length;
+            if (filledFields >= 4) {
+                generateRecommendations();
+                generateSummary();
+                aiInsights.classList.remove('hidden');
+
+                // Smooth scroll to insights
+                setTimeout(() => {
+                    aiInsights.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
+            } else {
+                alert('لطفاً حداقل ۴ فیلد از فرم را پر کنید تا بتوانیم تحلیل مناسبی ارائه دهیم.');
+            }
+        }
+
+        async function generateRecommendations() {
+            const formData = new FormData(document.getElementById('mainForm'));
+            const data = Object.fromEntries(formData);
+
+            try {
+                jobSuggestions.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-xl text-blue-400"></i><p class="mt-2">در حال تولید پیشنهادات شغلی...</p></div>';
+
+                const res = await fetch('/ai/recommend-jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+
+                if (result.recommendations) {
+                    jobSuggestions.innerHTML = result.recommendations.replace(/\n/g, '<br>');
+                }
+            } catch (e) {
+                console.error('Job recommendations error:', e);
+                jobSuggestions.innerHTML = '<div class="text-center py-4 text-red-300"><i class="fas fa-exclamation-triangle"></i><p class="mt-2">خطا در تولید پیشنهادات شغلی</p></div>';
+            }
+        }
+
+        async function generateSummary() {
+            const formData = new FormData(document.getElementById('mainForm'));
+            const data = Object.fromEntries(formData);
+
+            try {
+                summaryText.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-xl text-purple-400"></i><p class="mt-2">در حال تولید خلاصه پروفایل...</p></div>';
+
+                const res = await fetch('/ai/generate-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+
+                if (result.summary) {
+                    summaryText.textContent = result.summary;
+                }
+            } catch (e) {
+                console.error('Summary generation error:', e);
+                summaryText.innerHTML = '<div class="text-center py-4 text-red-300"><i class="fas fa-exclamation-triangle"></i><p class="mt-2">خطا در تولید خلاصه پروفایل</p></div>';
+            }
+        }
+
+        // Clear all functionality
+        clearAllBtn?.addEventListener('click', () => {
+            if (confirm('آیا از پاک کردن تمام اطلاعات وارد شده اطمینان دارید؟')) {
+                // Clear form fields
+                document.querySelectorAll('.field-input').forEach(field => {
+                    field.value = '';
+                });
+
+                // Clear voice text
+                voiceText.value = '';
+                autoGrow(voiceText);
+
+                // Clear conversation
+                conversation.innerHTML = '<div class="conversation-bubble ai-bubble"><div class="font-semibold text-blue-300 mb-1">I-SELECT</div><div>سلام! من دستیار هوشمند I-SELECT هستم. می‌تونم کمکتون کنم اطلاعاتتون رو به صورت مکالمه کامل کنیم. لطفاً خودتون رو معرفی کنید.</div></div>';
+
+                // Hide AI insights
+                aiInsights.classList.add('hidden');
+
+                // Reset progress
+                updateProgress();
+
+                // Stop recording if active
+                if (isRecording) {
+                    recognition.stop();
+                }
+            }
+        });
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('I-SELECT Enhanced Platform initialized successfully!');
         });
     </script>
 </body>
