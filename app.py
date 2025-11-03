@@ -285,7 +285,7 @@ class ConversationManager:
         self.sessions = {}
         self.required_fields = [
             "first_name", "last_name", "age", "gender", 
-            "experience_years", "city", "skills", "interests"
+            "experience_years", "city", "skills", "military_status", "interests"
         ]
         self.field_questions = {
             "first_name": "لطفاً نام خود را بگویید:",
@@ -295,7 +295,7 @@ class ConversationManager:
             "experience_years": "چند سال سابقه کار دارید؟",
             "city": "در کدام شهر ساکن هستید؟",
             "skills": "مهارت‌های اصلی و فنی شما چیست؟ (مثلاً: Python، SQL، طراحی وب)",
-            "military_status": "وضعیت سربازی شما چگونه است؟ (دارد/ندارد)",
+            "military_status": "وضعیت سربازی شما چگونه است؟ (دارد/ندارد/معاف/در حال خدمت)",
             "interests": "به چه زمینه‌ها و موضوعاتی علاقه دارید؟ (مثلاً: هوش مصنوعی، توسعه نرم‌افزار، تحلیل داده)"
         }
     
@@ -346,7 +346,7 @@ class ConversationManager:
             return {}
         
         prompt = f"""
-        از متن زیر فقط مقدار مربوط به "{field}" را استخراج کن:
+        از متن زیر فقط مقدار مربوط به "{self.field_questions[field]}" را استخراج کن:
         متن: {text}
         
         فقط مقدار استخراج شده را برگردان بدون توضیح اضافی.
@@ -360,13 +360,19 @@ class ConversationManager:
             value = response['message']['content'].strip()
             
             # Post-process based on field type
-            if field == 'age' or field == 'experience_years':
+            if field in ['age', 'experience_years']:
                 value = to_int_or_empty(value)
             elif field == 'gender':
-                if 'مرد' in value:
-                    value = 'مرد'
-                elif 'زن' in value:
-                    value = 'زن'
+                value = 'مرد' if 'مرد' in value else 'زن' if 'زن' in value else ''
+            elif field == 'military_status':
+                if 'دارد' in value:
+                    value = 'دارد'
+                elif 'ندارد' in value:
+                    value = 'ندارد'
+                elif 'معاف' in value:
+                    value = 'معاف'
+                elif 'خدمت' in value:
+                    value = 'در حال خدمت'
                 else:
                     value = ''
             
@@ -464,7 +470,7 @@ LLM_SYSTEM = """
   "gender": "مرد" | "زن" | "",
   "experience_years": number | "",
   "city": string | "",
-  "military_status": "دارد" | "ندارد" | "",
+  "military_status": "دارد" | "ندارد" | "معاف" | "در حال خدمت" | "",
   "skills": string[],        // فهرست دقیق مهارت‌های فنی، ابزارها، تکنولوژی‌ها
   "interests": string[]      // فهرست دقیق علایق حرفه‌ای و زمینه‌های کاری
 }

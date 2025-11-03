@@ -526,18 +526,20 @@
                                 <div class="conversation-bubble ai-bubble">
                                     <div class="font-semibold text-blue-300 mb-1">I-SELECT</div>
                                     سلام! من دستیار هوشمند I-SELECT هستم. می‌تونم کمکتون کنم اطلاعاتتون رو به صورت
-                                    مکالمه کامل کنیم. لطفاً خودتون رو معرفی کنید.
+                                    مکالمه کامل کنیم. لطفاً میکروفون را روشن کنید تا شروع کنیم.
                                 </div>
                             </div>
                         </div>
 
                         <div class="flex gap-2">
-                            <input type="text" id="conversationInput" placeholder="پاسخ خود را اینجا تایپ کنید..."
-                                class="flex-1 p-3 rounded-xl bg-gray-900/40 text-white border border-white/10 focus:border-blue-500 focus:outline-none">
-                            <button id="sendMessage" class="btn-grad text-white px-5 py-3 rounded-xl font-semibold">
-                                <i class="fas fa-paper-plane"></i>
+                            <button id="startConversationVoice"
+                                class="btn-grad text-white px-5 py-3 rounded-xl font-semibold flex items-center space-x-2 space-x-reverse w-full">
+                                <i class="fas fa-microphone"></i>
+                                <span>شروع گوش دادن به پاسخ</span>
                             </button>
                         </div>
+                        <p class="text-xs text-gray-300/80 mt-2">پس از ۸ ثانیه سکوت، گفتگوی هوشمند پایان می‌یابد اگر
+                            پاسخی دریافت نشود.</p>
                     </div>
                 </div>
 
@@ -795,6 +797,8 @@
         let recognition = null;
         let isRecording = false;
         let silenceTimer;
+        let conversationActive = false;
+        let conversationAnswer = '';
 
         // DOM elements
         const voiceBtn = document.getElementById("voiceBtn");
@@ -804,8 +808,7 @@
         const charCount = document.getElementById("charCount");
         const conversationContainer = document.getElementById("conversationContainer");
         const conversation = document.getElementById("conversation");
-        const conversationInput = document.getElementById("conversationInput");
-        const sendMessageBtn = document.getElementById("sendMessage");
+        const startConversationVoiceBtn = document.getElementById("startConversationVoice");
         const toggleConversationBtn = document.getElementById("toggleConversation");
         const clearAllBtn = document.getElementById("clearAll");
         const generateInsightsBtn = document.getElementById("generateInsights");
@@ -846,20 +849,20 @@
 
         // Progress tracking
         function updateProgress() {
-            const fields = document.querySelectorAll('.field-input');
+            const fields = document.querySelectorAll('.form-input');
             let filled = 0;
             fields.forEach(field => {
                 if (field.value && field.value.toString().trim() !== '') {
                     filled++;
                 }
             });
-            const percent = Math.round((filled / fields.length) * 100);
+            const percent = fields.length > 0 ? Math.round((filled / fields.length) * 100) : 0;
             progressFill.style.width = `${percent}%`;
             progressPercent.textContent = `${percent}%`;
         }
 
         // Initialize progress tracking
-        document.querySelectorAll('.field-input').forEach(field => {
+        document.querySelectorAll('.form-input').forEach(field => {
             field.addEventListener('input', updateProgress);
         });
         updateProgress();
@@ -877,12 +880,13 @@
         window.addEventListener('resize', () => autoGrow(voiceText), { passive: true });
         autoGrow(voiceText);
 
-        // Enhanced Speech Recognition with auto-stop after 3 seconds of silence
+        // Enhanced Speech Recognition
         (function initSTT() {
             try {
                 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (!SR) {
                     voiceBtn.disabled = true;
+                    startConversationVoiceBtn.disabled = true;
                     voiceBtn.innerHTML = '<i class="fas fa-microphone-slash"></i><span>مرورگر پشتیبانی نمی‌کند</span>';
                     return;
                 }
@@ -909,47 +913,57 @@
                     // Reset silence timer when speech is detected
                     clearTimeout(silenceTimer);
                     if (interim || final) {
+                        const silenceDuration = conversationActive ? 8000 : 3000;
                         silenceTimer = setTimeout(() => {
                             if (isRecording) {
                                 recognition.stop();
-                                isRecording = false;
-                                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
-                                voiceBtn.classList.remove("pulse-recording");
-
-                                // Auto-process the text if there's content
-                                if (voiceText.value.trim()) {
-                                    setTimeout(() => {
-                                        fillBtn.click();
-                                    }, 500);
-                                }
                             }
-                        }, 3000); // 3 seconds of silence
+                        }, silenceDuration);
                     }
 
-                    if (final) {
-                        voiceText.value = final;
-                        autoGrow(voiceText);
-                    } else if (interim) {
-                        // Show real-time transcription
-                        voiceText.value = interim;
+                    if (conversationActive) {
+                        conversationAnswer = final || interim;
+                    } else {
+                        voiceText.value = final || interim;
                         autoGrow(voiceText);
                     }
                 });
 
                 recognition.addEventListener("end", () => {
-                    voiceBtn.disabled = false;
-                    voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
-                    voiceBtn.classList.remove("pulse-recording");
                     isRecording = false;
+                    if (conversationActive) {
+                        startConversationVoiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع گوش دادن به پاسخ</span>';
+                        startConversationVoiceBtn.classList.remove("pulse-recording");
+                        if (conversationAnswer.trim()) {
+                            addMessage(conversationAnswer, 'user');
+                            processConversation(conversationAnswer);
+                            conversationAnswer = '';
+                        } else {
+                            // No answer, end conversation
+                            conversationActive = false;
+                            addMessage("گفتگو به دلیل عدم پاسخ به پایان رسید.", 'ai');
+                            generateAIInsights();
+                        }
+                    } else {
+                        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
+                        voiceBtn.classList.remove("pulse-recording");
+                        if (voiceText.value.trim()) {
+                            setTimeout(() => fillBtn.click(), 500);
+                        }
+                    }
                     clearTimeout(silenceTimer);
                 });
 
                 recognition.addEventListener("error", (e) => {
                     console.error("Speech recognition error:", e.error);
-                    voiceBtn.disabled = false;
-                    voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
-                    voiceBtn.classList.remove("pulse-recording");
                     isRecording = false;
+                    if (conversationActive) {
+                        startConversationVoiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع گوش دادن به پاسخ</span>';
+                        startConversationVoiceBtn.classList.remove("pulse-recording");
+                    } else {
+                        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
+                        voiceBtn.classList.remove("pulse-recording");
+                    }
                     clearTimeout(silenceTimer);
 
                     if (e.error === 'not-allowed') {
@@ -960,30 +974,37 @@
             } catch (e) {
                 console.warn("SpeechRecognition init error:", e);
                 voiceBtn.disabled = true;
+                startConversationVoiceBtn.disabled = true;
                 voiceBtn.innerHTML = '<i class="fas fa-microphone-slash"></i><span>خطا در راه‌اندازی</span>';
             }
         })();
 
         voiceBtn?.addEventListener("click", () => {
+            toggleRecording(false);
+        });
+
+        startConversationVoiceBtn?.addEventListener("click", () => {
+            toggleRecording(true);
+        });
+
+        function toggleRecording(isConversation) {
             if (!recognition) {
-                alert("مرورگر شما از تشخیص گفتار پشتیبانی نمی‌کند. لطفاً متن را در کادر بالا تایپ کنید.");
+                alert("مرورگر شما از تشخیص گفتار پشتیبانی نمی‌کند.");
                 return;
             }
 
+            conversationActive = isConversation;
+            const btn = isConversation ? startConversationVoiceBtn : voiceBtn;
             if (isRecording) {
                 recognition.stop();
-                isRecording = false;
-                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
-                voiceBtn.classList.remove("pulse-recording");
-                clearTimeout(silenceTimer);
             } else {
-                voiceBtn.disabled = true;
-                voiceBtn.innerHTML = '<i class="fas fa-circle"></i><span>در حال ضبط...</span>';
-                voiceBtn.classList.add("pulse-recording");
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-circle"></i><span>در حال ضبط...</span>';
+                btn.classList.add("pulse-recording");
                 recognition.start();
                 isRecording = true;
             }
-        });
+        }
 
         clearBtn?.addEventListener("click", () => {
             voiceText.value = '';
@@ -1005,6 +1026,7 @@
             });
 
             if (!conversationMode) {
+                conversationMode = true;
                 startConversation();
             }
         });
@@ -1017,6 +1039,8 @@
                 removeTypingIndicator();
                 currentQuestion = data.question;
                 addMessage(data.question, 'ai');
+                // Auto start listening for first answer
+                setTimeout(() => toggleRecording(true), 1000);
             } catch (e) {
                 console.error("Conversation start error:", e);
                 removeTypingIndicator();
@@ -1055,22 +1079,6 @@
             }
         }
 
-        sendMessageBtn?.addEventListener("click", sendMessage);
-        conversationInput?.addEventListener("keypress", (e) => {
-            if (e.key === "Enter") {
-                sendMessage();
-            }
-        });
-
-        function sendMessage() {
-            const userMessage = conversationInput.value.trim();
-            if (!userMessage) return;
-
-            conversationInput.value = '';
-            addMessage(userMessage, 'user');
-            processConversation(userMessage);
-        }
-
         async function processConversation(userMessage) {
             addMessage('', 'ai', true);
 
@@ -1095,13 +1103,18 @@
 
                 if (data.completed) {
                     addMessage("✅ اطلاعات شما کامل شد! در حال تولید پیشنهادات شغلی و خلاصه پروفایل...", 'ai');
+                    conversationActive = false;
                     setTimeout(generateAIInsights, 1500);
+                } else {
+                    // Continue listening for next answer
+                    setTimeout(() => toggleRecording(true), 1000);
                 }
 
             } catch (e) {
                 console.error("Conversation error:", e);
                 removeTypingIndicator();
                 addMessage("⚠️ خطا در پردازش پاسخ. لطفاً دوباره امتحان کنید.", 'ai');
+                conversationActive = false;
             }
         }
 
@@ -1221,21 +1234,21 @@
         }
 
         function updateFormFields(fields) {
-            const setVal = (sel, v) => {
-                const el = document.querySelector(sel);
+            const setVal = (name, v) => {
+                const el = document.querySelector(`[name="${name}"]`);
                 if (el != null && v != null) {
                     el.value = v;
                 }
             };
-            setVal('input[name="first_name"]', fields.first_name || "");
-            setVal('input[name="last_name"]', fields.last_name || "");
-            setVal('input[name="age"]', fields.age || "");
-            setVal('select[name="gender"]', fields.gender || "");
-            setVal('input[name="experience_years"]', fields.experience_years || "");
-            setVal('input[name="city"]', fields.city || "");
-            setVal('select[name="military_status"]', fields.military_status || "");
-            setVal('input[name="skills"]', fields.skills || "");
-            setVal('input[name="interests"]', fields.interests || "");
+            setVal('first_name', fields.first_name || "");
+            setVal('last_name', fields.last_name || "");
+            setVal('age', fields.age || "");
+            setVal('gender', fields.gender || "");
+            setVal('experience_years', fields.experience_years || "");
+            setVal('city', fields.city || "");
+            setVal('military_status', fields.military_status || "");
+            setVal('skills', fields.skills || "");
+            setVal('interests', fields.interests || "");
         }
 
         // AI Insights functionality
@@ -1312,7 +1325,7 @@
         clearAllBtn?.addEventListener('click', () => {
             if (confirm('آیا از پاک کردن تمام اطلاعات وارد شده اطمینان دارید؟')) {
                 // Clear form fields
-                document.querySelectorAll('.field-input').forEach(field => {
+                document.querySelectorAll('.form-input').forEach(field => {
                     field.value = '';
                 });
 
@@ -1321,7 +1334,7 @@
                 autoGrow(voiceText);
 
                 // Clear conversation
-                conversation.innerHTML = '<div class="conversation-bubble ai-bubble"><div class="font-semibold text-blue-300 mb-1">I-SELECT</div><div>سلام! من دستیار هوشمند I-SELECT هستم. می‌تونم کمکتون کنم اطلاعاتتون رو به صورت مکالمه کامل کنیم. لطفاً خودتون رو معرفی کنید.</div></div>';
+                conversation.innerHTML = '<div class="conversation-bubble ai-bubble"><div class="font-semibold text-blue-300 mb-1">I-SELECT</div><div>سلام! من دستیار هوشمند I-SELECT هستم. می‌تونم کمکتون کنم اطلاعاتتون رو به صورت مکالمه کامل کنیم. لطفاً میکروفون را روشن کنید تا شروع کنیم.</div></div>';
 
                 // Hide AI insights
                 aiInsights.classList.add('hidden');
@@ -1333,6 +1346,9 @@
                 if (isRecording) {
                     recognition.stop();
                 }
+
+                conversationMode = false;
+                conversationActive = false;
             }
         });
 
