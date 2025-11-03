@@ -1,4 +1,3 @@
-```markdown
 # 🧠 I-SELECT — Intelligent Applicant Intake System
 
 > **AI-powered resume intake, structured form filling, and job recommendation system**  
