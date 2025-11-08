@@ -10,6 +10,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/particles.js"></script>
+
+    <!-- Three.js برای آواتار سه‌بعدی -->
+    <script src="https://unpkg.com/three@0.161.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.161.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <!-- MediaPipe برای تشخیص چهره -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
 
@@ -310,6 +323,175 @@
                 box-shadow: inset 0px 0px 0px 30px #4bb71b;
             }
         }
+
+        /* استایل‌های جدید برای مودال مصاحبه */
+        .interview-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 8, 20, 0.95);
+            z-index: 1000;
+            display: none;
+            overflow-y: auto;
+        }
+
+        .interview-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            height: 100%;
+            padding: 2rem;
+        }
+
+        .interview-chat {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .interview-widgets {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .skill-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            padding: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .skill-card.invalidated {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .avatar-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+        }
+
+        .face-overlay-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .warning-badge {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .status-valid {
+            color: #4ade80;
+        }
+
+        .status-suspicious {
+            color: #fbbf24;
+        }
+
+        .status-invalid {
+            color: #ef4444;
+        }
+
+        /* استایل‌های جدید برای چت مصاحبه */
+        .interview-chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .interview-chat-messages {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: 0;
+        }
+
+        .interview-chat-content {
+            max-height: 100%;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .interview-chat-bubble {
+            max-width: 90%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            animation: fadeInUp 0.3s ease;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .interview-ai-bubble {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(219, 39, 119, 0.3));
+            border: 1px solid rgba(236, 72, 153, 0.3);
+            align-self: flex-start;
+            margin-right: 0;
+        }
+
+        .interview-user-bubble {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.3));
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            align-self: flex-end;
+            margin-left: 0;
+        }
+
+        .streaming-text {
+            display: inline;
+        }
+
+        .streaming-cursor {
+            display: inline;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            50% {
+                opacity: 1;
+            }
+
+            51%,
+            100% {
+                opacity: 0;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .interview-content {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -400,10 +582,10 @@
                         </div>
                         <div class="feature-card bg-white/5 p-3 rounded-xl">
                             <div class="flex items-center space-x-2 space-x-reverse">
-                                <i class="fas fa-briefcase text-purple-400"></i>
-                                <span class="font-medium">پیشنهاد شغلی</span>
+                                <i class="fas fa-headset text-purple-400"></i>
+                                <span class="font-medium">مصاحبه مهارتی</span>
                             </div>
-                            <p class="text-xs text-white/60 mt-1">دریافت پیشنهادات شغلی متناسب با پروفایل شما</p>
+                            <p class="text-xs text-white/60 mt-1">ارزیابی مهارت‌ها با آواتار سه‌بعدی و تشخیص چهره</p>
                         </div>
                     </div>
                 </div>
@@ -427,10 +609,10 @@
                             <i class="fas fa-brain"></i>
                             <span>تجزیه و تحلیل</span>
                         </button>
-                        <button
+                        <button id="openInterview"
                             class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 py-2 rounded-xl text-sm transition-all flex items-center justify-center space-x-1 space-x-reverse">
-                            <i class="fas fa-download"></i>
-                            <span>ذخیره اطلاعات</span>
+                            <i class="fas fa-headset"></i>
+                            <span>مصاحبه مهارتی</span>
                         </button>
                     </div>
                 </div>
@@ -578,6 +760,12 @@
 
                 <!-- Main Form -->
                 <form method="post" action="/" class="space-y-6" id="mainForm">
+                    <!-- فیلدهای پنهان برای ذخیره نتایج مصاحبه -->
+                    <input type="hidden" id="interview_done" name="interview_done" value="false">
+                    <input type="hidden" id="interview_overall" name="Interv_OverallScore">
+                    <input type="hidden" id="interview_summary" name="Interv_Summary">
+                    <input type="hidden" id="interview_perskill" name="Interv_PerSkillJSON">
+
                     <div class="glass p-6">
                         <h2 class="text-xl font-bold text-white mb-6 flex items-center space-x-2 space-x-reverse">
                             <i class="fas fa-user-edit text-purple-400"></i>
@@ -713,7 +901,7 @@
 
                     <!-- Form Actions -->
                     <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                        <button type="submit"
+                        <button type="submit" id="submitBtn"
                             class="btn-grad text-white px-10 py-3.5 rounded-xl font-semibold text-lg flex items-center space-x-2 space-x-reverse">
                             <i class="fas fa-save"></i>
                             <span>ثبت نهایی اطلاعات</span>
@@ -759,7 +947,183 @@
         </footer>
     </div>
 
+    <!-- مودال مصاحبه مهارتی -->
+    <div id="interviewModal" class="interview-modal">
+        <div class="interview-content">
+            <!-- ستون چپ - رابط چت و آواتار -->
+            <div class="interview-chat">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-white">مصاحبه مهارتی</h2>
+                    <button id="closeInterview" class="text-white/70 hover:text-white text-xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- آواتار سه‌بعدی -->
+                <div class="avatar-container mb-4">
+                    <canvas id="avatarCanvas"></canvas>
+                </div>
+
+                <!-- چت مصاحبه -->
+                <div class="interview-chat-container">
+                    <div class="interview-chat-messages">
+                        <div id="intChat" class="interview-chat-content">
+                            <div class="interview-chat-bubble interview-ai-bubble">
+                                <div class="font-semibold text-blue-300 mb-1">دستیار مصاحبه</div>
+                                <div>سلام! به بخش مصاحبه مهارتی خوش آمدید. در این بخش مهارت‌های شما ارزیابی خواهد شد.
+                                    لطفاً آماده باشید.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- کنترل‌های مصاحبه -->
+                <div class="flex gap-2 mt-4">
+                    <button id="intStart"
+                        class="btn-grad text-white px-4 py-2 rounded-xl font-semibold flex items-center space-x-2 space-x-reverse flex-1">
+                        <i class="fas fa-microphone"></i>
+                        <span>شروع ضبط</span>
+                    </button>
+                    <button id="intStop" disabled
+                        class="bg-gray-600 text-white px-4 py-2 rounded-xl font-semibold flex items-center space-x-2 space-x-reverse flex-1">
+                        <i class="fas fa-stop"></i>
+                        <span>توقف</span>
+                    </button>
+                    <button id="intFinish" disabled
+                        class="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold flex items-center space-x-2 space-x-reverse flex-1">
+                        <i class="fas fa-flag-checkered"></i>
+                        <span>اتمام مصاحبه</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ستون راست - ویجت‌ها -->
+            <div class="interview-widgets">
+                <!-- ناحیه تشخیص چهره -->
+                <div class="face-overlay-container">
+                    <video id="userCam" autoplay playsinline muted class="w-full rounded-xl"></video>
+                    <canvas id="faceOverlay" class="absolute top-0 left-0 w-full h-full"></canvas>
+                </div>
+
+                <!-- وضعیت‌ها -->
+                <div class="glass p-4">
+                    <h3 class="font-semibold text-white mb-3">وضعیت مصاحبه</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">پیشرفت کل:</span>
+                            <div class="w-24 progress-bar">
+                                <div id="intProgress" class="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">سوال:</span>
+                            <span id="qCounter" class="text-white font-semibold">0/0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">هشدارها:</span>
+                            <span id="warnCounter" class="warning-badge">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- کارت‌های مهارت -->
+                <div class="glass p-4">
+                    <h3 class="font-semibold text-white mb-3">مهارت‌ها</h3>
+                    <div id="skillCards" class="space-y-2">
+                        <!-- کارت‌های مهارت به صورت پویا اضافه خواهند شد -->
+                    </div>
+                </div>
+
+                <!-- اعلان‌های لحظه‌ای -->
+                <div id="intAlerts" class="space-y-2">
+                    <!-- اعلان‌ها اینجا نمایش داده می‌شوند -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // State management
+        let conversationMode = false;
+        let currentQuestion = null;
+        let recognition = null;
+        let isRecording = false;
+        let silenceTimer;
+        let conversationActive = false;
+        let conversationAnswer = '';
+
+        // State مصاحبه
+        let interviewActive = false;
+        let currentSkillIndex = 0;
+        let currentQuestionIndex = 0;
+        let warnings = {};
+        let skills = [];
+        let interviewQuestions = {};
+        let interviewAnswers = {};
+        let faceMesh = null;
+        let avatarScene = null;
+        let avatarMorphTarget = null;
+        let gazeAwayTimer = null;
+        let faceLostTimer = null;
+        let currentTTS = null;
+        let lipsyncInterval = null;
+        let currentStreamingText = '';
+        let currentStreamingIndex = 0;
+        let currentUserStreamingText = '';
+        let currentUserStreamingIndex = 0;
+
+        // DOM elements
+        const voiceBtn = document.getElementById("voiceBtn");
+        const voiceText = document.getElementById("voiceText");
+        const fillBtn = document.getElementById("fillFromVoice");
+        const clearBtn = document.getElementById("clearVoice");
+        const charCount = document.getElementById("charCount");
+        const conversationContainer = document.getElementById("conversationContainer");
+        const conversation = document.getElementById("conversation");
+        const startConversationVoiceBtn = document.getElementById("startConversationVoice");
+        const toggleConversationBtn = document.getElementById("toggleConversation");
+        const clearAllBtn = document.getElementById("clearAll");
+        const generateInsightsBtn = document.getElementById("generateInsights");
+        const manualInsightsBtn = document.getElementById("manualInsights");
+        const fileUploadArea = document.getElementById("fileUploadArea");
+        const resumeFile = document.getElementById("resumeFile");
+        const uploadProgress = document.getElementById("fileUploadProgress");
+        const uploadProgressFill = document.getElementById("uploadProgressFill");
+        const uploadProgressPercent = document.getElementById("uploadProgressPercent");
+        const progressFill = document.getElementById("progressFill");
+        const progressPercent = document.getElementById("progressPercent");
+        const aiInsights = document.getElementById("aiInsights");
+        const aiRecommendations = document.getElementById("aiRecommendations");
+        const jobSuggestions = document.getElementById("jobSuggestions");
+        const aiSummary = document.getElementById("aiSummary");
+        const summaryText = document.getElementById("summaryText");
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const submitBtn = document.getElementById("submitBtn");
+
+        // عناصر مصاحبه
+        const openInterviewBtn = document.getElementById("openInterview");
+        const interviewModal = document.getElementById("interviewModal");
+        const closeInterviewBtn = document.getElementById("closeInterview");
+        const intChat = document.getElementById("intChat");
+        const intStart = document.getElementById("intStart");
+        const intStop = document.getElementById("intStop");
+        const intFinish = document.getElementById("intFinish");
+        const intProgress = document.getElementById("intProgress");
+        const qCounter = document.getElementById("qCounter");
+        const warnCounter = document.getElementById("warnCounter");
+        const skillCards = document.getElementById("skillCards");
+        const intAlerts = document.getElementById("intAlerts");
+        const avatarCanvas = document.getElementById("avatarCanvas");
+        const userCam = document.getElementById("userCam");
+        const faceOverlay = document.getElementById("faceOverlay");
+
+        // فیلدهای پنهان
+        const interviewDone = document.getElementById("interview_done");
+        const interviewOverall = document.getElementById("interview_overall");
+        const interviewSummary = document.getElementById("interview_summary");
+        const interviewPerskill = document.getElementById("interview_perskill");
+
         // Initialize Particles.js
         particlesJS("particles-js", {
             particles: {
@@ -791,42 +1155,18 @@
             retina_detect: true
         });
 
-        // State management
-        let conversationMode = false;
-        let currentQuestion = null;
-        let recognition = null;
-        let isRecording = false;
-        let silenceTimer;
-        let conversationActive = false;
-        let conversationAnswer = '';
-
-        // DOM elements
-        const voiceBtn = document.getElementById("voiceBtn");
-        const voiceText = document.getElementById("voiceText");
-        const fillBtn = document.getElementById("fillFromVoice");
-        const clearBtn = document.getElementById("clearVoice");
-        const charCount = document.getElementById("charCount");
-        const conversationContainer = document.getElementById("conversationContainer");
-        const conversation = document.getElementById("conversation");
-        const startConversationVoiceBtn = document.getElementById("startConversationVoice");
-        const toggleConversationBtn = document.getElementById("toggleConversation");
-        const clearAllBtn = document.getElementById("clearAll");
-        const generateInsightsBtn = document.getElementById("generateInsights");
-        const manualInsightsBtn = document.getElementById("manualInsights");
-        const fileUploadArea = document.getElementById("fileUploadArea");
-        const resumeFile = document.getElementById("resumeFile");
-        const uploadProgress = document.getElementById("fileUploadProgress");
-        const uploadProgressFill = document.getElementById("uploadProgressFill");
-        const uploadProgressPercent = document.getElementById("uploadProgressPercent");
-        const progressFill = document.getElementById("progressFill");
-        const progressPercent = document.getElementById("progressPercent");
-        const aiInsights = document.getElementById("aiInsights");
-        const aiRecommendations = document.getElementById("aiRecommendations");
-        const jobSuggestions = document.getElementById("jobSuggestions");
-        const aiSummary = document.getElementById("aiSummary");
-        const summaryText = document.getElementById("summaryText");
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabContents = document.querySelectorAll('.tab-content');
+        // مدیریت فعال/غیرفعال بودن دکمه ثبت نهایی
+        function updateSubmitButton() {
+            if (interviewDone.value === "true") {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('bg-gray-500');
+                submitBtn.classList.add('btn-grad');
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.classList.remove('btn-grad');
+                submitBtn.classList.add('bg-gray-500');
+            }
+        }
 
         // Tab switching functionality
         tabButtons.forEach(button => {
@@ -866,6 +1206,7 @@
             field.addEventListener('input', updateProgress);
         });
         updateProgress();
+        updateSubmitButton();
 
         // Voice UI with real-time transcription and auto-stop
         function autoGrow(el) {
@@ -923,6 +1264,10 @@
 
                     if (conversationActive) {
                         conversationAnswer = final || interim;
+                    } else if (interviewActive && isRecording) {
+                        // استریم متن کاربر در مصاحبه
+                        currentUserStreamingText = final || interim;
+                        updateUserStreamingText();
                     } else {
                         voiceText.value = final || interim;
                         autoGrow(voiceText);
@@ -944,6 +1289,30 @@
                             addMessage("گفتگو به دلیل عدم پاسخ به پایان رسید.", 'ai');
                             generateAIInsights();
                         }
+                    } else if (interviewActive) {
+                        intStart.disabled = false;
+                        intStop.disabled = true;
+                        intStart.innerHTML = '<i class="fas fa-microphone"></i><span>شروع ضبط</span>';
+                        intStart.classList.remove("pulse-recording");
+
+                        // ذخیره پاسخ نهایی کاربر
+                        if (currentUserStreamingText.trim()) {
+                            const currentSkill = skills[currentSkillIndex];
+                            if (!interviewAnswers[currentSkill]) {
+                                interviewAnswers[currentSkill] = [];
+                            }
+                            interviewAnswers[currentSkill].push(currentUserStreamingText);
+
+                            // پاک کردن متن استریم
+                            currentUserStreamingText = '';
+                            currentUserStreamingIndex = 0;
+
+                            // رفتن به سوال بعدی
+                            setTimeout(() => {
+                                currentQuestionIndex++;
+                                askNextQuestion();
+                            }, 1000);
+                        }
                     } else {
                         voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
                         voiceBtn.classList.remove("pulse-recording");
@@ -960,6 +1329,11 @@
                     if (conversationActive) {
                         startConversationVoiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع گوش دادن به پاسخ</span>';
                         startConversationVoiceBtn.classList.remove("pulse-recording");
+                    } else if (interviewActive) {
+                        intStart.disabled = false;
+                        intStop.disabled = true;
+                        intStart.innerHTML = '<i class="fas fa-microphone"></i><span>شروع ضبط</span>';
+                        intStart.classList.remove("pulse-recording");
                     } else {
                         voiceBtn.innerHTML = '<i class="fas fa-microphone"></i><span>شروع صحبت</span>';
                         voiceBtn.classList.remove("pulse-recording");
@@ -1351,6 +1725,672 @@
                 conversationActive = false;
             }
         });
+
+        // ==================== مصاحبه مهارتی ====================
+
+        // مدیریت باز و بسته شدن مودال مصاحبه
+        openInterviewBtn?.addEventListener('click', () => {
+            const skillsInput = document.querySelector('input[name="skills"]');
+            const userSkills = skillsInput.value.split(',').map(skill => skill.trim()).filter(skill => skill);
+
+            if (userSkills.length === 0) {
+                alert('لطفاً ابتدا مهارت‌های خود را در فرم وارد کنید.');
+                return;
+            }
+
+            skills = userSkills;
+            interviewModal.style.display = 'flex';
+            initializeInterview();
+        });
+
+        closeInterviewBtn?.addEventListener('click', () => {
+            if (interviewActive && !confirm('مصاحبه در حال انجام است. آیا مطمئن هستید که می‌خواهید خارج شوید؟')) {
+                return;
+            }
+            interviewModal.style.display = 'none';
+            stopInterview();
+        });
+
+        // Initialize مصاحبه
+        async function initializeInterview() {
+            // Reset state
+            interviewActive = false;
+            currentSkillIndex = 0;
+            currentQuestionIndex = 0;
+            warnings = {};
+            interviewQuestions = {};
+            interviewAnswers = {};
+
+            // Initialize warnings for each skill
+            skills.forEach(skill => {
+                warnings[skill] = 0;
+                interviewAnswers[skill] = [];
+            });
+
+            // Update UI
+            updateSkillCards();
+            updateWarnCounter();
+            updateQCounter();
+            updateProgressBar();
+
+            // Initialize technologies
+            await initializeAvatar();
+            await initializeFaceMesh();
+            initializeEventListeners();
+
+            // Generate questions
+            await generateInterviewQuestions();
+
+            addInterviewMessage('مصاحبه مهارتی آماده است. برای شروع بر روی دکمه "شروع ضبط" کلیک کنید.', 'ai');
+        }
+
+        // Initialize آواتار سه‌بعدی با لیپ سینک
+        async function initializeAvatar() {
+            try {
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({
+                    canvas: avatarCanvas,
+                    alpha: true,
+                    antialias: true
+                });
+
+                renderer.setSize(200, 200);
+                renderer.setClearColor(0x000000, 0);
+
+                // نورپردازی
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(1, 1, 1);
+                scene.add(directionalLight);
+
+                // ایجاد یک هندسه ساده برای آواتار با قابلیت مورف
+                const geometry = new THREE.SphereGeometry(1, 32, 32);
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0x4f46e5,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const avatar = new THREE.Mesh(geometry, material);
+                scene.add(avatar);
+
+                // ایجاد مورف تارگت برای لب‌ها
+                const mouthGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+                mouthGeometry.translate(0, -0.2, 0.9);
+                const mouthMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xdc2626,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+                avatar.add(mouth);
+
+                camera.position.z = 3;
+
+                // انیمیشن و لیپ سینک
+                let mouthOpen = 0;
+                let targetMouthOpen = 0;
+
+                function animate() {
+                    requestAnimationFrame(animate);
+
+                    // لیپ سینک - حرکت لب‌ها بر اساس صحبت
+                    mouthOpen += (targetMouthOpen - mouthOpen) * 0.2;
+                    mouth.scale.y = 0.3 + mouthOpen * 0.5;
+                    mouth.scale.x = 0.3 + mouthOpen * 0.2;
+
+                    avatar.rotation.y += 0.01;
+                    renderer.render(scene, camera);
+                }
+                animate();
+
+                // تابع برای کنترل لیپ سینک
+                function updateLipSync(isSpeaking) {
+                    targetMouthOpen = isSpeaking ? 1 : 0;
+                }
+
+                avatarScene = { scene, camera, renderer, avatar, mouth, updateLipSync };
+            } catch (error) {
+                console.error('Error initializing avatar:', error);
+            }
+        }
+
+        // Initialize تشخیص چهره با نقاط کمتر
+        async function initializeFaceMesh() {
+            try {
+                // راه‌اندازی دوربین
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 400, height: 300 }
+                });
+                userCam.srcObject = stream;
+
+                // راه‌اندازی FaceMesh
+                faceMesh = new FaceMesh({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+                    }
+                });
+
+                faceMesh.setOptions({
+                    maxNumFaces: 1,
+                    refineLandmarks: false, // غیرفعال کردن نقاط اضافی
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                faceMesh.onResults(onFaceResults);
+
+                const camera = new Camera(userCam, {
+                    onFrame: async () => {
+                        await faceMesh.send({ image: userCam });
+                    },
+                    width: 400,
+                    height: 300
+                });
+                camera.start();
+
+            } catch (error) {
+                console.error('Error initializing face mesh:', error);
+                addAlert('خطا در راه‌اندازی دوربین. مصاحبه بدون نظارت بر چهره ادامه می‌یابد.', 'warning');
+            }
+        }
+
+        // پردازش نتایج تشخیص چهره با نقاط کمتر
+        function onFaceResults(results) {
+            const canvasCtx = faceOverlay.getContext('2d');
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, faceOverlay.width, faceOverlay.height);
+
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+
+                // رسم فقط نقاط اصلی صورت
+                drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION,
+                    { color: '#C0C0C030', lineWidth: 1 }); // کمرنگ‌تر
+
+                // چشم‌ها با رنگ ملایم
+                drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE,
+                    { color: '#30E8BF50', lineWidth: 1 });
+                drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE,
+                    { color: '#30E8BF50', lineWidth: 1 });
+
+                // لب‌ها با رنگ ملایم‌تر
+                drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS,
+                    { color: '#E30B5C50', lineWidth: 1 }); // قرمز کمرنگ
+
+                // تحلیل جهت نگاه
+                analyzeGaze(landmarks);
+            } else {
+                // چهره تشخیص داده نشد
+                handleFaceLost();
+            }
+
+            canvasCtx.restore();
+        }
+
+        // تحلیل جهت نگاه
+        function analyzeGaze(landmarks) {
+            clearTimeout(faceLostTimer);
+            clearTimeout(gazeAwayTimer);
+
+            // فرض می‌کنیم اگر چهره تشخیص داده شده، کاربر به صفحه نگاه می‌کند
+        }
+
+        function handleFaceLost() {
+            if (!faceLostTimer) {
+                faceLostTimer = setTimeout(() => {
+                    addWarning('gaze-away-8s');
+                }, 8000);
+            }
+        }
+
+        // Initialize event listeners برای مصاحبه
+        function initializeEventListeners() {
+            // رویدادهای صفحه‌کلید برای تشخیص تایپ حین پاسخ
+            document.addEventListener('keydown', handleKeyDownDuringAnswer);
+            document.addEventListener('keyup', handleKeyUpDuringAnswer);
+
+            // رویدادهای تغییر تب/پنجره
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('blur', handleWindowBlur);
+
+            // دکمه‌های کنترل مصاحبه
+            intStart.addEventListener('click', startInterviewRecording);
+            intStop.addEventListener('click', stopInterviewRecording);
+            intFinish.addEventListener('click', finishInterview);
+        }
+
+        function handleKeyDownDuringAnswer(e) {
+            if (interviewActive && isRecording) {
+                addWarning('typing-during-answer');
+            }
+        }
+
+        function handleKeyUpDuringAnswer(e) {
+            // می‌توانید منطق بیشتری اینجا اضافه کنید
+        }
+
+        function handleVisibilityChange() {
+            if (interviewActive && document.hidden) {
+                addWarning('tab-switched');
+            }
+        }
+
+        function handleWindowBlur() {
+            if (interviewActive) {
+                addWarning('tab-switched');
+            }
+        }
+
+        // تولید سوالات مصاحبه
+        async function generateInterviewQuestions() {
+            try {
+                // شبیه‌سازی تولید سوالات - در پیاده‌سازی واقعی با بک‌اند ارتباط برقرار می‌شود
+                interviewQuestions = {};
+                skills.forEach(skill => {
+                    interviewQuestions[skill] = [
+                        `لطفاً در مورد تجربه خود با ${skill} توضیح دهید.`,
+                        `یک پروژه چالش‌برانگیز که با ${skill} انجام داده‌اید را شرح دهید.`,
+                        `مهم‌ترین مفاهیم ${skill} از نظر شما کدام‌اند؟`
+                    ];
+                });
+
+                addInterviewMessage(`سوالات مصاحبه برای ${skills.length} مهارت تولید شد.`, 'ai');
+            } catch (error) {
+                console.error('Error generating questions:', error);
+                addInterviewMessage('خطا در تولید سوالات. لطفاً دوباره تلاش کنید.', 'ai');
+            }
+        }
+
+        // شروع ضبط در مصاحبه
+        function startInterviewRecording() {
+            if (!interviewActive) {
+                interviewActive = true;
+                currentSkillIndex = 0;
+                currentQuestionIndex = 0;
+                askNextQuestion();
+            }
+
+            intStart.disabled = true;
+            intStop.disabled = false;
+            intStart.innerHTML = '<i class="fas fa-circle"></i><span>در حال ضبط...</span>';
+            intStart.classList.add("pulse-recording");
+
+            // شروع تشخیص گفتار
+            if (recognition) {
+                recognition.start();
+                isRecording = true;
+
+                // تایمر سکوت ۸ ثانیه‌ای
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(() => {
+                    addWarning('silence-8s');
+                    stopInterviewRecording();
+                    askNextQuestion();
+                }, 8000);
+            }
+        }
+
+        // توقف ضبط در مصاحبه
+        function stopInterviewRecording() {
+            intStart.disabled = false;
+            intStop.disabled = true;
+            intStart.innerHTML = '<i class="fas fa-microphone"></i><span>شروع ضبط</span>';
+            intStart.classList.remove("pulse-recording");
+
+            if (recognition && isRecording) {
+                recognition.stop();
+                isRecording = false;
+                clearTimeout(silenceTimer);
+            }
+        }
+
+        // پرسش سوال بعدی
+        function askNextQuestion() {
+            if (currentSkillIndex >= skills.length) {
+                finishInterview();
+                return;
+            }
+
+            const currentSkill = skills[currentSkillIndex];
+            const skillQuestions = interviewQuestions[currentSkill] || [];
+
+            if (currentQuestionIndex >= skillQuestions.length) {
+                // به سراغ مهارت بعدی برو
+                currentSkillIndex++;
+                currentQuestionIndex = 0;
+                askNextQuestion();
+                return;
+            }
+
+            const question = skillQuestions[currentQuestionIndex];
+
+            // نمایش سوال در چت و استفاده از TTS
+            speakQuestionWithStreaming(question);
+
+            updateQCounter();
+            updateProgressBar();
+        }
+
+        // استفاده از TTS برای خواندن سوال با استریم متن
+        function speakQuestionWithStreaming(question) {
+            // اول سوال را در چت نمایش می‌دهیم
+            addInterviewMessage(question, 'ai');
+
+            // سپس با TTS می‌خوانیم
+            if ('speechSynthesis' in window) {
+                // توقف TTS قبلی اگر وجود دارد
+                if (currentTTS) {
+                    speechSynthesis.cancel();
+                }
+
+                const utterance = new SpeechSynthesisUtterance(question);
+                utterance.lang = 'fa-IR';
+                utterance.rate = 0.8; // سرعت کمتر برای وضوح بیشتر
+                utterance.pitch = 1;
+
+                // فعال کردن لیپ سینک هنگام شروع صحبت
+                utterance.onstart = function () {
+                    if (avatarScene && avatarScene.updateLipSync) {
+                        avatarScene.updateLipSync(true);
+                    }
+                };
+
+                // غیرفعال کردن لیپ سینک هنگام پایان صحبت
+                utterance.onend = function () {
+                    if (avatarScene && avatarScene.updateLipSync) {
+                        avatarScene.updateLipSync(false);
+                    }
+                    // فعال کردن ضبط برای پاسخ کاربر
+                    setTimeout(() => {
+                        intStart.disabled = false;
+                        intStart.click(); // شروع خودکار ضبط پاسخ
+                    }, 500);
+                };
+
+                speechSynthesis.speak(utterance);
+                currentTTS = utterance;
+            } else {
+                // اگر TTS پشتیبانی نمی‌شود، مستقیماً ضبط را فعال کن
+                setTimeout(() => {
+                    intStart.disabled = false;
+                    intStart.click();
+                }, 1000);
+            }
+        }
+
+        // به‌روزرسانی متن استریم کاربر
+        function updateUserStreamingText() {
+            // پیدا کردن آخرین حباب کاربر یا ایجاد جدید
+            let userBubble = intChat.querySelector('.interview-user-bubble:last-child');
+            if (!userBubble || !userBubble.classList.contains('streaming')) {
+                userBubble = document.createElement('div');
+                userBubble.className = 'interview-chat-bubble interview-user-bubble streaming';
+                userBubble.innerHTML = `
+                    <div class="font-semibold text-white mb-1">شما</div>
+                    <div class="streaming-text"></div>
+                `;
+                intChat.appendChild(userBubble);
+            }
+
+            const streamingText = userBubble.querySelector('.streaming-text');
+            streamingText.innerHTML = currentUserStreamingText + '<span class="streaming-cursor">|</span>';
+
+            // اسکرول به پایین
+            intChat.scrollTop = intChat.scrollHeight;
+        }
+
+        // اتمام مصاحبه
+        async function finishInterview() {
+            interviewActive = false;
+            stopInterviewRecording();
+
+            addInterviewMessage('مصاحبه به پایان رسید. در حال ارزیابی پاسخ‌ها...', 'ai');
+
+            try {
+                // شبیه‌سازی ارزیابی - در پیاده‌سازی واقعی با بک‌اند ارتباط برقرار می‌شود
+                const results = {
+                    per_skill: {},
+                    overall: 75,
+                    summary: 'کاربر دانش خوبی در مهارت‌های مطرح شده دارد و می‌تواند پروژه‌های مرتبط را مدیریت کند.'
+                };
+
+                skills.forEach(skill => {
+                    results.per_skill[skill] = {
+                        score: Math.floor(Math.random() * 30) + 70, // نمره تصادفی 70-100
+                        evidence: 'پاسخ‌های کاربر نشان‌دهنده دانش عملی و تجربه کافی است.',
+                        flags: warnings[skill] > 5 ? ['generic'] : []
+                    };
+                });
+
+                displayInterviewResults(results);
+
+            } catch (error) {
+                console.error('Error scoring interview:', error);
+                addInterviewMessage('خطا در ارزیابی مصاحبه. لطفاً دوباره تلاش کنید.', 'ai');
+            }
+        }
+
+        // نمایش نتایج مصاحبه
+        function displayInterviewResults(results) {
+            // اعمال قاعده وارنینگ‌ها
+            Object.keys(results.per_skill).forEach(skill => {
+                if (warnings[skill] > 10) {
+                    results.per_skill[skill].score = 0;
+                    results.per_skill[skill].flags.push('invalidated');
+                }
+            });
+
+            // نمایش نتایج در کارت‌ها
+            updateSkillCardsWithResults(results.per_skill);
+
+            // ذخیره در فیلدهای پنهان
+            interviewOverall.value = results.overall;
+            interviewSummary.value = results.summary;
+            interviewPerskill.value = JSON.stringify(results.per_skill);
+            interviewDone.value = "true";
+
+            // فعال کردن دکمه ثبت نهایی
+            updateSubmitButton();
+
+            addInterviewMessage(`ارزیابی مصاحبه تکمیل شد. نمره کلی: ${results.overall}`, 'ai');
+            intFinish.disabled = true;
+        }
+
+        // افزودن پیام به چت مصاحبه
+        function addInterviewMessage(text, sender) {
+            const bubble = document.createElement('div');
+            bubble.className = `interview-chat-bubble interview-${sender === 'ai' ? 'ai' : 'user'}-bubble`;
+
+            bubble.innerHTML = `
+                <div class="font-semibold ${sender === 'ai' ? 'text-blue-300' : 'text-white'} mb-1">
+                    ${sender === 'ai' ? 'دستیار مصاحبه' : 'شما'}
+                </div>
+                <div>${text}</div>
+            `;
+
+            intChat.appendChild(bubble);
+            intChat.scrollTop = intChat.scrollHeight;
+        }
+
+        // افزودن هشدار
+        function addWarning(type) {
+            const skill = skills[currentSkillIndex];
+            if (skill) {
+                warnings[skill]++;
+                updateWarnCounter();
+
+                const warningMessages = {
+                    'typing-during-answer': 'تایپ حین پاسخ‌دهی',
+                    'silence-8s': 'سکوت طولانی مدت',
+                    'tab-switched': 'تعویض تب/پنجره',
+                    'gaze-away-8s': 'عدم توجه به صفحه',
+                    'high-noise': 'نویز بالا',
+                    'one-word': 'پاسخ تک‌کلمه‌ای'
+                };
+
+                addAlert(`هشدار: ${warningMessages[type] || type}`, 'warning');
+            }
+        }
+
+        // افزودن اعلان
+        function addAlert(message, type = 'info') {
+            const alert = document.createElement('div');
+            alert.className = `p-2 rounded text-sm ${type === 'warning' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' :
+                    type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                        'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                }`;
+            alert.textContent = message;
+
+            intAlerts.appendChild(alert);
+
+            // حذف خودکار پس از ۵ ثانیه
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.parentNode.removeChild(alert);
+                }
+            }, 5000);
+        }
+
+        // به‌روزرسانی کارت‌های مهارت
+        function updateSkillCards() {
+            skillCards.innerHTML = '';
+
+            skills.forEach(skill => {
+                const card = document.createElement('div');
+                card.className = 'skill-card';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-semibold text-white">${skill}</span>
+                        <span class="text-xs ${getStatusClass(warnings[skill])}">${getStatusText(warnings[skill])}</span>
+                    </div>
+                    <div class="progress-bar mb-2">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="text-xs text-white/60">وارنینگ: ${warnings[skill]}/10</div>
+                `;
+                skillCards.appendChild(card);
+            });
+        }
+
+        function updateSkillCardsWithResults(results) {
+            skillCards.innerHTML = '';
+
+            Object.keys(results).forEach(skill => {
+                const result = results[skill];
+                const isInvalidated = warnings[skill] > 10;
+                const score = isInvalidated ? 0 : result.score;
+
+                const card = document.createElement('div');
+                card.className = `skill-card ${isInvalidated ? 'invalidated' : ''}`;
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-semibold text-white">${skill}</span>
+                        <span class="text-xs ${getStatusClass(warnings[skill], true)}">
+                            ${getStatusText(warnings[skill], true, result.flags)}
+                        </span>
+                    </div>
+                    <div class="progress-bar mb-2">
+                        <div class="progress-fill" style="width: ${score}%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-white/60">نمره: ${score}</span>
+                        <span class="text-white/60">وارنینگ: ${warnings[skill]}/10</span>
+                    </div>
+                    <div class="text-xs text-white/70">${result.evidence}</div>
+                    ${result.flags.length > 0 ?
+                        `<div class="text-xs text-yellow-400 mt-1">پرچم‌ها: ${result.flags.join(', ')}</div>` : ''
+                    }
+                `;
+                skillCards.appendChild(card);
+            });
+        }
+
+        function getStatusClass(warningCount, withResults = false) {
+            if (withResults) {
+                if (warningCount > 10) return 'status-invalid';
+                if (warningCount > 5) return 'status-suspicious';
+                return 'status-valid';
+            } else {
+                if (warningCount > 5) return 'status-suspicious';
+                return 'status-valid';
+            }
+        }
+
+        function getStatusText(warningCount, withResults = false, flags = []) {
+            if (withResults) {
+                if (warningCount > 10) return '🟥 نامعتبر';
+                if (flags.includes('generic') || flags.includes('off-topic')) return '⚠️ مشکوک';
+                return '✅ معتبر';
+            } else {
+                if (warningCount > 5) return '⚠️ مشکوک';
+                return '✅ معتبر';
+            }
+        }
+
+        function updateWarnCounter() {
+            const totalWarnings = Object.values(warnings).reduce((sum, count) => sum + count, 0);
+            warnCounter.textContent = totalWarnings;
+        }
+
+        function updateQCounter() {
+            const totalQuestions = skills.reduce((sum, skill) =>
+                sum + (interviewQuestions[skill]?.length || 0), 0);
+            const answeredQuestions = skills.reduce((sum, skill, index) => {
+                if (index < currentSkillIndex) {
+                    return sum + (interviewQuestions[skill]?.length || 0);
+                } else if (index === currentSkillIndex) {
+                    return sum + currentQuestionIndex;
+                }
+                return sum;
+            }, 0);
+
+            qCounter.textContent = `${answeredQuestions}/${totalQuestions}`;
+        }
+
+        function updateProgressBar() {
+            const totalQuestions = skills.reduce((sum, skill) =>
+                sum + (interviewQuestions[skill]?.length || 0), 0);
+            const answeredQuestions = skills.reduce((sum, skill, index) => {
+                if (index < currentSkillIndex) {
+                    return sum + (interviewQuestions[skill]?.length || 0);
+                } else if (index === currentSkillIndex) {
+                    return sum + currentQuestionIndex;
+                }
+                return sum;
+            }, 0);
+
+            const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
+            intProgress.style.width = `${progress}%`;
+        }
+
+        function stopInterview() {
+            interviewActive = false;
+            stopInterviewRecording();
+
+            // توقف TTS
+            if (currentTTS) {
+                speechSynthesis.cancel();
+            }
+
+            // توقف لیپ سینک
+            if (avatarScene && avatarScene.updateLipSync) {
+                avatarScene.updateLipSync(false);
+            }
+
+            // پاک‌سازی event listeners
+            document.removeEventListener('keydown', handleKeyDownDuringAnswer);
+            document.removeEventListener('keyup', handleKeyUpDuringAnswer);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', handleWindowBlur);
+
+            // توقف دوربین
+            if (userCam.srcObject) {
+                userCam.srcObject.getTracks().forEach(track => track.stop());
+            }
+        }
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function () {
