@@ -334,15 +334,16 @@
             background: rgba(5, 8, 20, 0.95);
             z-index: 1000;
             display: none;
-            overflow-y: auto;
         }
 
         .interview-content {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 2rem;
-            height: 100%;
+            height: 100vh;
             padding: 2rem;
+            max-height: 100vh;
+            overflow: hidden;
         }
 
         .interview-chat {
@@ -355,6 +356,8 @@
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
+            height: 100%;
+            overflow-y: auto;
         }
 
         .skill-card {
@@ -374,6 +377,7 @@
             width: 200px;
             height: 200px;
             margin: 0 auto;
+            flex-shrink: 0;
         }
 
         .face-overlay-container {
@@ -381,6 +385,7 @@
             width: 100%;
             max-width: 400px;
             margin: 0 auto;
+            flex-shrink: 0;
         }
 
         .warning-badge {
@@ -410,28 +415,23 @@
             display: flex;
             flex-direction: column;
             min-height: 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
         }
 
         .interview-chat-messages {
             flex: 1;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            min-height: 0;
-        }
-
-        .interview-chat-content {
-            max-height: 100%;
             overflow-y: auto;
             padding: 1rem;
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.75rem;
         }
 
         .interview-chat-bubble {
-            max-width: 90%;
+            max-width: 85%;
             padding: 0.75rem 1rem;
             border-radius: 1rem;
             animation: fadeInUp 0.3s ease;
@@ -487,9 +487,43 @@
             }
         }
 
+        /* استایل برای اسکرول بار چت */
+        .interview-chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .interview-chat-messages::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .interview-chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .interview-chat-messages::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* استایل برای ویجت‌ها */
+        .interview-widgets-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
         @media (max-width: 1024px) {
             .interview-content {
                 grid-template-columns: 1fr;
+                height: auto;
+                min-height: 100vh;
+                overflow-y: auto;
+            }
+
+            .interview-widgets {
+                height: auto;
             }
         }
     </style>
@@ -966,13 +1000,11 @@
 
                 <!-- چت مصاحبه -->
                 <div class="interview-chat-container">
-                    <div class="interview-chat-messages">
-                        <div id="intChat" class="interview-chat-content">
-                            <div class="interview-chat-bubble interview-ai-bubble">
-                                <div class="font-semibold text-blue-300 mb-1">دستیار مصاحبه</div>
-                                <div>سلام! به بخش مصاحبه مهارتی خوش آمدید. در این بخش مهارت‌های شما ارزیابی خواهد شد.
-                                    لطفاً آماده باشید.</div>
-                            </div>
+                    <div class="interview-chat-messages" id="intChat">
+                        <div class="interview-chat-bubble interview-ai-bubble">
+                            <div class="font-semibold text-blue-300 mb-1">دستیار مصاحبه</div>
+                            <div>سلام! به بخش مصاحبه مهارتی خوش آمدید. در این بخش مهارت‌های شما ارزیابی خواهد شد. لطفاً
+                                آماده باشید.</div>
                         </div>
                     </div>
                 </div>
@@ -989,10 +1021,10 @@
                         <i class="fas fa-stop"></i>
                         <span>توقف</span>
                     </button>
-                    <button id="intFinish" disabled
+                    <button id="intFinish"
                         class="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold flex items-center space-x-2 space-x-reverse flex-1">
                         <i class="fas fa-flag-checkered"></i>
-                        <span>اتمام مصاحبه</span>
+                        <span>پایان مصاحبه</span>
                     </button>
                 </div>
             </div>
@@ -1000,13 +1032,16 @@
             <!-- ستون راست - ویجت‌ها -->
             <div class="interview-widgets">
                 <!-- ناحیه تشخیص چهره -->
-                <div class="face-overlay-container">
-                    <video id="userCam" autoplay playsinline muted class="w-full rounded-xl"></video>
-                    <canvas id="faceOverlay" class="absolute top-0 left-0 w-full h-full"></canvas>
+                <div class="interview-widgets-section">
+                    <h3 class="font-semibold text-white mb-3">ناحیه تشخیص چهره</h3>
+                    <div class="face-overlay-container">
+                        <video id="userCam" autoplay playsinline muted class="w-full rounded-xl"></video>
+                        <canvas id="faceOverlay" class="absolute top-0 left-0 w-full h-full"></canvas>
+                    </div>
                 </div>
 
                 <!-- وضعیت‌ها -->
-                <div class="glass p-4">
+                <div class="interview-widgets-section">
                     <h3 class="font-semibold text-white mb-3">وضعیت مصاحبه</h3>
                     <div class="space-y-3">
                         <div class="flex justify-between items-center">
@@ -1027,7 +1062,7 @@
                 </div>
 
                 <!-- کارت‌های مهارت -->
-                <div class="glass p-4">
+                <div class="interview-widgets-section">
                     <h3 class="font-semibold text-white mb-3">مهارت‌ها</h3>
                     <div id="skillCards" class="space-y-2">
                         <!-- کارت‌های مهارت به صورت پویا اضافه خواهند شد -->
@@ -1035,8 +1070,11 @@
                 </div>
 
                 <!-- اعلان‌های لحظه‌ای -->
-                <div id="intAlerts" class="space-y-2">
-                    <!-- اعلان‌ها اینجا نمایش داده می‌شوند -->
+                <div class="interview-widgets-section">
+                    <h3 class="font-semibold text-white mb-3">اعلان‌ها</h3>
+                    <div id="intAlerts" class="space-y-2 max-h-32 overflow-y-auto">
+                        <!-- اعلان‌ها اینجا نمایش داده می‌شوند -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -1062,15 +1100,8 @@
         let interviewAnswers = {};
         let faceMesh = null;
         let avatarScene = null;
-        let avatarMorphTarget = null;
-        let gazeAwayTimer = null;
-        let faceLostTimer = null;
         let currentTTS = null;
-        let lipsyncInterval = null;
-        let currentStreamingText = '';
-        let currentStreamingIndex = 0;
         let currentUserStreamingText = '';
-        let currentUserStreamingIndex = 0;
 
         // DOM elements
         const voiceBtn = document.getElementById("voiceBtn");
@@ -1305,7 +1336,6 @@
 
                             // پاک کردن متن استریم
                             currentUserStreamingText = '';
-                            currentUserStreamingIndex = 0;
 
                             // رفتن به سوال بعدی
                             setTimeout(() => {
@@ -1875,7 +1905,7 @@
 
                 faceMesh.setOptions({
                     maxNumFaces: 1,
-                    refineLandmarks: false, // غیرفعال کردن نقاط اضافی
+                    refineLandmarks: false,
                     minDetectionConfidence: 0.5,
                     minTrackingConfidence: 0.5
                 });
@@ -1908,7 +1938,7 @@
 
                 // رسم فقط نقاط اصلی صورت
                 drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION,
-                    { color: '#C0C0C030', lineWidth: 1 }); // کمرنگ‌تر
+                    { color: '#C0C0C030', lineWidth: 1 });
 
                 // چشم‌ها با رنگ ملایم
                 drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE,
@@ -1918,7 +1948,7 @@
 
                 // لب‌ها با رنگ ملایم‌تر
                 drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS,
-                    { color: '#E30B5C50', lineWidth: 1 }); // قرمز کمرنگ
+                    { color: '#E30B5C50', lineWidth: 1 });
 
                 // تحلیل جهت نگاه
                 analyzeGaze(landmarks);
@@ -1934,8 +1964,6 @@
         function analyzeGaze(landmarks) {
             clearTimeout(faceLostTimer);
             clearTimeout(gazeAwayTimer);
-
-            // فرض می‌کنیم اگر چهره تشخیص داده شده، کاربر به صفحه نگاه می‌کند
         }
 
         function handleFaceLost() {
@@ -1987,20 +2015,28 @@
         // تولید سوالات مصاحبه
         async function generateInterviewQuestions() {
             try {
-                // شبیه‌سازی تولید سوالات - در پیاده‌سازی واقعی با بک‌اند ارتباط برقرار می‌شود
-                interviewQuestions = {};
-                skills.forEach(skill => {
-                    interviewQuestions[skill] = [
-                        `لطفاً در مورد تجربه خود با ${skill} توضیح دهید.`,
-                        `یک پروژه چالش‌برانگیز که با ${skill} انجام داده‌اید را شرح دهید.`,
-                        `مهم‌ترین مفاهیم ${skill} از نظر شما کدام‌اند؟`
-                    ];
+                const response = await fetch('/interview/generate-questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skills })
                 });
+
+                const data = await response.json();
+                interviewQuestions = data.questions;
 
                 addInterviewMessage(`سوالات مصاحبه برای ${skills.length} مهارت تولید شد.`, 'ai');
             } catch (error) {
                 console.error('Error generating questions:', error);
-                addInterviewMessage('خطا در تولید سوالات. لطفاً دوباره تلاش کنید.', 'ai');
+                // Fallback questions
+                interviewQuestions = {};
+                skills.forEach(skill => {
+                    interviewQuestions[skill] = [
+                        `مفهوم ${skill} را چگونه توضیح می‌دهید؟`,
+                        `یک نمونه از کاربرد عملی ${skill} را شرح دهید.`,
+                        `با چه چالش‌هایی در پیاده‌سازی ${skill} روبرو شده‌اید؟`
+                    ];
+                });
+                addInterviewMessage('سوالات مصاحبه تولید شد.', 'ai');
             }
         }
 
@@ -2088,7 +2124,7 @@
 
                 const utterance = new SpeechSynthesisUtterance(question);
                 utterance.lang = 'fa-IR';
-                utterance.rate = 0.8; // سرعت کمتر برای وضوح بیشتر
+                utterance.rate = 0.8;
                 utterance.pitch = 1;
 
                 // فعال کردن لیپ سینک هنگام شروع صحبت
@@ -2142,7 +2178,7 @@
             intChat.scrollTop = intChat.scrollHeight;
         }
 
-        // اتمام مصاحبه
+        // پایان مصاحبه
         async function finishInterview() {
             interviewActive = false;
             stopInterviewRecording();
@@ -2150,21 +2186,12 @@
             addInterviewMessage('مصاحبه به پایان رسید. در حال ارزیابی پاسخ‌ها...', 'ai');
 
             try {
-                // شبیه‌سازی ارزیابی - در پیاده‌سازی واقعی با بک‌اند ارتباط برقرار می‌شود
-                const results = {
-                    per_skill: {},
-                    overall: 75,
-                    summary: 'کاربر دانش خوبی در مهارت‌های مطرح شده دارد و می‌تواند پروژه‌های مرتبط را مدیریت کند.'
-                };
-
-                skills.forEach(skill => {
-                    results.per_skill[skill] = {
-                        score: Math.floor(Math.random() * 30) + 70, // نمره تصادفی 70-100
-                        evidence: 'پاسخ‌های کاربر نشان‌دهنده دانش عملی و تجربه کافی است.',
-                        flags: warnings[skill] > 5 ? ['generic'] : []
-                    };
+                const response = await fetch('/interview/score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
                 });
 
+                const results = await response.json();
                 displayInterviewResults(results);
 
             } catch (error) {
@@ -2176,26 +2203,29 @@
         // نمایش نتایج مصاحبه
         function displayInterviewResults(results) {
             // اعمال قاعده وارنینگ‌ها
-            Object.keys(results.per_skill).forEach(skill => {
-                if (warnings[skill] > 10) {
-                    results.per_skill[skill].score = 0;
-                    results.per_skill[skill].flags.push('invalidated');
-                }
-            });
+            if (results.per_skill) {
+                Object.keys(results.per_skill).forEach(skill => {
+                    if (warnings[skill] > 10) {
+                        results.per_skill[skill].score = 0;
+                        results.per_skill[skill].flags = results.per_skill[skill].flags || [];
+                        results.per_skill[skill].flags.push('invalidated');
+                    }
+                });
+            }
 
             // نمایش نتایج در کارت‌ها
-            updateSkillCardsWithResults(results.per_skill);
+            updateSkillCardsWithResults(results.per_skill || {});
 
             // ذخیره در فیلدهای پنهان
-            interviewOverall.value = results.overall;
-            interviewSummary.value = results.summary;
-            interviewPerskill.value = JSON.stringify(results.per_skill);
+            interviewOverall.value = results.overall || 0;
+            interviewSummary.value = results.summary || 'بدون خلاصه';
+            interviewPerskill.value = JSON.stringify(results.per_skill || {});
             interviewDone.value = "true";
 
             // فعال کردن دکمه ثبت نهایی
             updateSubmitButton();
 
-            addInterviewMessage(`ارزیابی مصاحبه تکمیل شد. نمره کلی: ${results.overall}`, 'ai');
+            addInterviewMessage(`ارزیابی مصاحبه تکمیل شد. نمره کلی: ${results.overall || 0}`, 'ai');
             intFinish.disabled = true;
         }
 
@@ -2281,7 +2311,7 @@
             Object.keys(results).forEach(skill => {
                 const result = results[skill];
                 const isInvalidated = warnings[skill] > 10;
-                const score = isInvalidated ? 0 : result.score;
+                const score = isInvalidated ? 0 : (result.score || 0);
 
                 const card = document.createElement('div');
                 card.className = `skill-card ${isInvalidated ? 'invalidated' : ''}`;
@@ -2299,8 +2329,8 @@
                         <span class="text-white/60">نمره: ${score}</span>
                         <span class="text-white/60">وارنینگ: ${warnings[skill]}/10</span>
                     </div>
-                    <div class="text-xs text-white/70">${result.evidence}</div>
-                    ${result.flags.length > 0 ?
+                    <div class="text-xs text-white/70">${result.evidence || 'بدون شواهد'}</div>
+                    ${result.flags && result.flags.length > 0 ?
                         `<div class="text-xs text-yellow-400 mt-1">پرچم‌ها: ${result.flags.join(', ')}</div>` : ''
                     }
                 `;
@@ -2322,7 +2352,7 @@
         function getStatusText(warningCount, withResults = false, flags = []) {
             if (withResults) {
                 if (warningCount > 10) return '🟥 نامعتبر';
-                if (flags.includes('generic') || flags.includes('off-topic')) return '⚠️ مشکوک';
+                if (flags && flags.includes('generic') || flags.includes('off-topic')) return '⚠️ مشکوک';
                 return '✅ معتبر';
             } else {
                 if (warningCount > 5) return '⚠️ مشکوک';
