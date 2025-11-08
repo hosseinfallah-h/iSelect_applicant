@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-I-SELECT (Applicant Intake) — Enhanced with improved capabilities extraction
+I-SELECT (Applicant Intake) — Enhanced with Interview System
 """
 
 import os
@@ -9,7 +9,7 @@ import re
 import json
 import tempfile
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
@@ -382,6 +382,250 @@ class ConversationManager:
             return {}
 
 conversation_manager = ConversationManager()
+
+# -----------------------------------------------------------------------------
+# Interview System
+# -----------------------------------------------------------------------------
+class InterviewManager:
+    def __init__(self):
+        self.sessions = {}
+        self.question_templates = {
+            "conceptual": [
+                "مفهوم {skill} را چگونه توضیح می‌دهید؟",
+                "اصول اصلی {skill} چیست؟",
+                "تفاوت {skill} با تکنولوژی‌های مشابه در چیست؟"
+            ],
+            "practical": [
+                "یک نمونه از کاربرد عملی {skill} را شرح دهید.",
+                "چگونه از {skill} در یک پروژه واقعی استفاده کرده‌اید؟",
+                "با چه چالش‌هایی در پیاده‌سازی {skill} روبرو شده‌اید؟"
+            ],
+            "advanced": [
+                "تجربه شما با ویژگی‌های پیشرفته {skill} چیست؟",
+                "بهترین روش‌ها (best practices) برای استفاده از {skill} کدام‌اند؟",
+                "چگونه می‌توان عملکرد {skill} را بهینه کرد؟"
+            ]
+        }
+    
+    def start_interview(self, session_id: str, skills: List[str]) -> Dict:
+        """Initialize interview session with generated questions"""
+        questions = {}
+        
+        for skill in skills:
+            skill_questions = []
+            # Generate 2-4 questions per skill
+            for q_type in ["conceptual", "practical", "advanced"]:
+                template = self.question_templates[q_type][0]  # Use first template for each type
+                skill_questions.append(template.format(skill=skill))
+            
+            questions[skill] = skill_questions[:3]  # Take max 3 questions
+        
+        self.sessions[session_id] = {
+            'skills': skills,
+            'questions': questions,
+            'answers': {skill: [] for skill in skills},
+            'warnings': {skill: 0 for skill in skills},
+            'current_skill_index': 0,
+            'current_question_index': 0,
+            'completed': False
+        }
+        
+        return {
+            "questions": questions,
+            "total_questions": sum(len(q) for q in questions.values())
+        }
+    
+    def get_current_question(self, session_id: str) -> str:
+        """Get current question for the interview"""
+        session = self.sessions.get(session_id)
+        if not session or session['completed']:
+            return None
+        
+        current_skill = session['skills'][session['current_skill_index']]
+        skill_questions = session['questions'][current_skill]
+        
+        if session['current_question_index'] < len(skill_questions):
+            return skill_questions[session['current_question_index']]
+        
+        return None
+    
+    def submit_answer(self, session_id: str, answer: str, warnings: Dict) -> Dict:
+        """Submit answer for current question and move to next"""
+        session = self.sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+        
+        current_skill = session['skills'][session['current_skill_index']]
+        
+        # Store answer
+        session['answers'][current_skill].append(answer)
+        
+        # Update warnings
+        if current_skill in warnings:
+            session['warnings'][current_skill] += warnings[current_skill]
+        
+        # Move to next question
+        session['current_question_index'] += 1
+        
+        # Check if we need to move to next skill
+        current_skill_questions = session['questions'][current_skill]
+        if session['current_question_index'] >= len(current_skill_questions):
+            session['current_skill_index'] += 1
+            session['current_question_index'] = 0
+        
+        # Check if interview is completed
+        if session['current_skill_index'] >= len(session['skills']):
+            session['completed'] = True
+            return {
+                "completed": True,
+                "next_question": None
+            }
+        
+        next_question = self.get_current_question(session_id)
+        return {
+            "completed": False,
+            "next_question": next_question,
+            "progress": self.get_progress(session_id)
+        }
+    
+    def get_progress(self, session_id: str) -> Dict:
+        """Get interview progress"""
+        session = self.sessions.get(session_id)
+        if not session:
+            return {}
+        
+        total_questions = sum(len(q) for q in session['questions'].values())
+        answered_questions = sum(len(a) for a in session['answers'].values())
+        
+        return {
+            "answered": answered_questions,
+            "total": total_questions,
+            "percentage": (answered_questions / total_questions * 100) if total_questions > 0 else 0
+        }
+    
+    def evaluate_interview(self, session_id: str) -> Dict:
+        """Evaluate the complete interview"""
+        session = self.sessions.get(session_id)
+        if not session or not session['completed']:
+            return {"error": "Interview not completed"}
+        
+        try:
+            # Use LLM to evaluate answers
+            evaluation = self.llm_evaluate_answers(
+                session['skills'],
+                session['questions'],
+                session['answers'],
+                session['warnings']
+            )
+            return evaluation
+        except Exception as e:
+            print(f"Interview evaluation error: {e}")
+            return self.fallback_evaluation(session)
+    
+    def llm_evaluate_answers(self, skills: List[str], questions: Dict, answers: Dict, warnings: Dict) -> Dict:
+        """Use LLM to evaluate interview answers"""
+        if not ollama:
+            return self.fallback_evaluation({"skills": skills, "warnings": warnings})
+        
+        prompt = """
+        لطفاً پاسخ‌های مصاحبه زیر را بر اساس معیارهای زیر ارزیابی کنید:
+        
+        معیارهای ارزیابی:
+        1. دانش مفهومی (۰-۳۰ امتیاز)
+        2. کاربرد عملی (۰-۴۰ امتیاز) 
+        3. مثال‌های واقعی (۰-۳۰ امتیاز)
+        
+        برای هر مهارت، یک نمره کلی (۰-۱۰۰) و شواهد و پرچم‌ها را مشخص کنید.
+        
+        مهارت‌ها و پاسخ‌ها:
+        """
+        
+        for skill in skills:
+            prompt += f"\n\nمهارت: {skill}\n"
+            skill_questions = questions[skill]
+            skill_answers = answers[skill]
+            
+            for i, (question, answer) in enumerate(zip(skill_questions, skill_answers)):
+                prompt += f"سوال {i+1}: {question}\n"
+                prompt += f"پاسخ: {answer}\n"
+        
+        prompt += """
+        
+        خروجی مورد نظر به صورت JSON:
+        {
+            "per_skill": {
+                "مهارت۱": {
+                    "score": عدد بین ۰-۱۰۰,
+                    "evidence": "توضیح مختصر بر اساس پاسخ‌ها",
+                    "flags": ["generic", "off-topic", ...] // در صورت وجود
+                },
+                ...
+            },
+            "overall": عدد بین ۰-۱۰۰,
+            "summary": "خلاصه کلی مصاحبه"
+        }
+        
+        فقط JSON برگردانید.
+        """
+        
+        try:
+            response = ollama.chat(
+                model=OLLAMA_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                options={"temperature": 0.1}
+            )
+            
+            # Extract JSON from response
+            json_match = re.search(r'\{.*\}', response['message']['content'], re.DOTALL)
+            if json_match:
+                evaluation = json.loads(json_match.group())
+                
+                # Apply warning penalties
+                for skill in skills:
+                    if skill in evaluation.get("per_skill", {}):
+                        if warnings.get(skill, 0) > 10:
+                            evaluation["per_skill"][skill]["score"] = 0
+                            evaluation["per_skill"][skill]["flags"] = evaluation["per_skill"][skill].get("flags", []) + ["invalidated"]
+                
+                return evaluation
+        except Exception as e:
+            print(f"LLM evaluation error: {e}")
+        
+        return self.fallback_evaluation({"skills": skills, "warnings": warnings})
+    
+    def fallback_evaluation(self, session: Dict) -> Dict:
+        """Fallback evaluation when LLM is not available"""
+        skills = session['skills']
+        warnings = session.get('warnings', {})
+        
+        per_skill = {}
+        total_score = 0
+        
+        for skill in skills:
+            # Simple scoring based on answer length and warning count
+            base_score = 70  # Base score
+            warning_penalty = min(warnings.get(skill, 0) * 3, 30)  # Max 30 point penalty
+            
+            score = max(base_score - warning_penalty, 0)
+            if warnings.get(skill, 0) > 10:
+                score = 0
+            
+            per_skill[skill] = {
+                "score": score,
+                "evidence": "ارزیابی بر اساس پاسخ‌های ارائه شده",
+                "flags": ["generic"] if warnings.get(skill, 0) > 5 else []
+            }
+            total_score += score
+        
+        overall = total_score // len(skills) if skills else 0
+        
+        return {
+            "per_skill": per_skill,
+            "overall": overall,
+            "summary": "مصاحبه با موفقیت انجام شد. مهارت‌های کاربر ارزیابی گردید."
+        }
+
+interview_manager = InterviewManager()
 
 # -----------------------------------------------------------------------------
 # Document Parser
@@ -817,10 +1061,55 @@ def generate_summary():
     return jsonify({"summary": summary})
 
 # -----------------------------------------------------------------------------
+# Interview Routes
+# -----------------------------------------------------------------------------
+@app.route("/interview/generate-questions", methods=["POST"])
+def generate_interview_questions():
+    """Generate interview questions for skills"""
+    data = request.get_json(silent=True) or {}
+    skills = data.get("skills", [])
+    
+    if not skills:
+        return jsonify({"error": "No skills provided"}), 400
+    
+    session_id = request.remote_addr
+    result = interview_manager.start_interview(session_id, skills)
+    
+    return jsonify(result)
+
+@app.route("/interview/submit-answer", methods=["POST"])
+def submit_interview_answer():
+    """Submit answer for current interview question"""
+    data = request.get_json(silent=True) or {}
+    answer = data.get("answer", "")
+    warnings = data.get("warnings", {})
+    
+    session_id = request.remote_addr
+    result = interview_manager.submit_answer(session_id, answer, warnings)
+    
+    return jsonify(result)
+
+@app.route("/interview/score", methods=["POST"])
+def score_interview():
+    """Evaluate completed interview"""
+    session_id = request.remote_addr
+    evaluation = interview_manager.evaluate_interview(session_id)
+    
+    return jsonify(evaluation)
+
+@app.route("/interview/current-question", methods=["GET"])
+def get_current_question():
+    """Get current interview question"""
+    session_id = request.remote_addr
+    question = interview_manager.get_current_question(session_id)
+    
+    return jsonify({"question": question})
+
+# -----------------------------------------------------------------------------
 # Entrypoint
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     print("🚀 I-SELECT Enhanced Server Starting...")
-    print("📝 Features: Multi-turn Conversation, Real-time STT, Document Parsing, AI Recommendations")
+    print("📝 Features: Multi-turn Conversation, Real-time STT, Document Parsing, AI Recommendations, Interview System")
     print("🔊 Make sure Ollama is running with Gemma model")
     app.run(debug=True, port=5001)
